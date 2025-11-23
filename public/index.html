@@ -1,1 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Enhanced Chat (Render)</title>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<style>
+  :root{--bg:#f6f8fb;--card:#fff;--accent:#2563eb;--muted:#666}
+  body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#111}
+  .app{max-width:1000px;margin:24px auto;border-radius:8px;overflow:hidden;display:grid;grid-template-columns:1fr 320px;box-shadow:0 6px 24px rgba(16,24,40,0.08)}
+  .left{background:var(--card);display:flex;flex-direction:column;height:80vh}
+  header{padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px}
+  header .logo{font-weight:600;color:var(--accent)}
+  .messages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+  .composer{padding:12px;border-top:1px solid #eee;display:flex;gap:8px;align-items:center}
+  textarea{flex:1;height:64px;padding:10px;border-radius:8px;border:1px solid #e6eef8;resize:none}
+  button{background:var(--accent);color:white;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
+  .right{padding:12px;background:#fbfdff;border-left:1px solid #eee;display:flex;flex-direction:column;gap:8px}
+  .user{display:flex;align-items:center;gap:10px}
+  .avatar{width:40px;height:40px;border-radius:50%;display:inline-grid;place-items:center;color:white;font-weight:600}
+  .meta{font-size:13px;color:var(--muted)}
+  .msg{max-width:70%;padding:10px;border-radius:10px;background:#f1f7ff;border:1px solid #e6f0ff}
+  .msg.out{margin-left:auto;background:#e6ffef;border-color:#cfeedd}
+  .typing{font-size:13px;color:var(--muted);padding:6px 10px}
+  .status{font-size:13px;color:var(--muted);margin-top:6px}
+  .file-link{display:inline-block;margin-top:6px;color:var(--accent);text-decoration:underline;cursor:pointer}
+  .small{font-size:13px;color:var(--muted)}
+  .users-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+  .user-item{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px}
+  .read-badge{font-size:12px;color:var(--muted);margin-left:8px}
+  footer{font-size:12px;color:var(--muted);padding:8px}
+</style>
+</head>
+<body>
+<div class="app" role="application">
+  <div class="left">
+    <header>
+      <div class="logo">Enhanced Chat</div>
+      <div style="flex:1"></div>
+      <div class="user" title="Your name">
+        <div id="myAvatar" class="avatar" style="background:#7c3aed">A</div>
+        <input id="nameInput" placeholder="Your name" style="padding:6px;border-radius:6px;border:1px solid #ddd">
+        <button id="setNameBtn" class="small">Set</button>
+      </div>
+    </header>
 
+    <div id="messages" class="messages" aria-live="polite"></div>
+
+    <div class="composer">
+      <input id="fileInput" type="file">
+      <textarea id="textInput" placeholder="Write a message..."></textarea>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button id="sendBtn">Send</button>
+        <button id="clearBtn" class="small">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <aside class="right">
+    <div class="small">Connection</div>
+    <div id="connStatus" class="status">Connecting...</div>
+
+    <hr>
+    <div class="small">People</div>
+    <ul id="users" class="users-list"></ul>
+
+    <hr>
+    <div class="small">Typing</div>
+    <div id="typing" class="typing">—</div>
+
+    <footer>Files stored in your browser (IndexedDB). Server only relays messages.</footer>
+  </aside>
+</div>
+
+<script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+<script>
+(async function(){
+  // Utilities
+  function uid(prefix='id'){return prefix+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)}
+  function initialsFrom(name){ if(!name) return '?'; return name.split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase(); }
+  function colorFrom(name){ const colors=['#7c3aed','#0ea5e9','#ef4444','#16a34a','#f97316','#0ea5e9','#8b5cf6']; let h=0; for(let i=0;i<name.length;i++) h+=name.charCodeAt(i); return colors[h%colors.length]; }
+
+  // IndexedDB helpers
+  const DB_NAME='enhanced_chat_db', DB_VER=1;
+  let db;
+  function openDb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB_NAME,DB_VER); r.onupgradeneeded = e => { const d=e.target.result; if(!d.objectStoreNames.contains('messages')) d.createObjectStore('messages',{keyPath:'id'}); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files',{keyPath:'id'}); }; r.onsuccess = ()=>{ db=r.result; res(db); }; r.onerror = ()=> rej(r.error); }); }
+  function put(store, obj){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction([store],'readwrite'); tx.objectStore(store).put(obj); tx.oncomplete=()=>res(obj); tx.onerror=()=>rej(tx.error); }); }
+  function getAll(store){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction([store],'readonly'); const out=[]; const req = tx.objectStore(store).openCursor(); req.onsuccess = e => { const cur=e.target.result; if(!cur) return res(out); out.push(cur.value); cur.continue(); }; req.onerror = ()=> rej(req.error); }); }
+  function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction(['files'],'readonly'); const req=tx.objectStore('files').get(id); req.onsuccess=()=>res(req.result?req.result.blob:null); req.onerror=()=>rej(req.error); }); }
+
+  await openDb();
+
+  // DOM
+  const socket = io();
+  const messagesEl = document.getElementById('messages');
+  const usersEl = document.getElementById('users');
+  const typingEl = document.getElementById('typing');
+  const connStatus = document.getElementById('connStatus');
+  const nameInput = document.getElementById('nameInput');
+  const setNameBtn = document.getElementById('setNameBtn');
+  const myAvatar = document.getElementById('myAvatar');
+  const fileInput = document.getElementById('fileInput');
+  const textInput = document.getElementById('textInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  // State
+  let name = localStorage.getItem('enhanced_chat_name') || ('User '+Math.floor(Math.random()*9000));
+  let users = {}; // id -> name
+  let typingUsers = new Set();
+
+  function updateAvatar(){ myAvatar.textContent = initialsFrom(name); myAvatar.style.background = colorFrom(name); nameInput.value = name; }
+  updateAvatar();
+
+  function addMessageDOM(m){
+    const div = document.createElement('div');
+    div.className = 'msg ' + (m.out?'out':'in');
+    const meta = document.createElement('div'); meta.className='meta small'; meta.textContent = (m.sender || 'Anonymous') + ' · ' + new Date(m.ts||Date.now()).toLocaleString();
+    const body = document.createElement('div'); body.style.marginTop='6px';
+    if(m.text) body.appendChild(document.createTextNode(m.text));
+    if(m.fileId){
+      const a = document.createElement('a'); a.className='file-link'; a.textContent = '📎 ' + (m.fileName||'file'); a.href='#';
+      a.onclick = async (e)=>{ e.preventDefault(); const blob = await getFile(m.fileId); if(!blob){ alert('File not in your browser storage.'); return; } const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href=url; link.download = m.fileName || 'file'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),10000); };
+      body.appendChild(document.createElement('br'));
+      body.appendChild(a);
+      // read receipt placeholder
+      const rb = document.createElement('span'); rb.className='read-badge'; rb.textContent = m.readBy ? ('Read by: '+m.readBy.join(', ')) : ''; body.appendChild(rb);
+    }
+    div.appendChild(meta);
+    div.appendChild(body);
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // Load history
+  const hist = await getAll('messages');
+  hist.forEach(m=> addMessageDOM(m));
+
+  // Connection status
+  socket.on('connect', ()=>{ connStatus.textContent = 'Connected'; socket.emit('join', name); });
+  socket.on('disconnect', ()=> connStatus.textContent = 'Disconnected');
+  socket.on('connect_error', ()=> connStatus.textContent = 'Connection error');
+
+  // User presence
+  socket.on('user-joined', ({id,user})=>{ users[id]=user; renderUsers(); addSystem(`${user} joined`); });
+  socket.on('user-left', ({id,user})=>{ delete users[id]; renderUsers(); addSystem(`${user||'Someone'} left`); });
+
+  function renderUsers(){
+    usersEl.innerHTML=''; for(const id in users){ const li=document.createElement('li'); li.className='user-item'; const av=document.createElement('div'); av.className='avatar'; av.style.background=colorFrom(users[id]); av.textContent=initialsFrom(users[id]); const nm=document.createElement('div'); nm.textContent=users[id]; li.appendChild(av); li.appendChild(nm); usersEl.appendChild(li); }
+  }
+
+  // Typing indicator
+  let typingTimer = null;
+  textInput.addEventListener('input', ()=> {
+    socket.emit('typing', { });
+    if(typingTimer) clearTimeout(typingTimer);
+    typingTimer = setTimeout(()=> socket.emit('stop-typing', {}), 1200);
+  });
+  socket.on('typing', ({user})=>{ typingUsers.add(user); updateTyping(); });
+  socket.on('stop-typing', ({user})=>{ typingUsers.delete(user); updateTyping(); });
+  function updateTyping(){ typingEl.textContent = typingUsers.size ? Array.from(typingUsers).join(', ')+' is typing...' : '—'; }
+
+  // Read receipts
+  function markRead(messageId){
+    socket.emit('message-read', { messageId, reader: name });
+  }
+  socket.on('message-read', ({messageId, reader})=>{
+    // update local message entry readBy
+    // naive approach: update DOM read badges for matching message fileId
+    // (In this simple template, we'll just append a system note)
+    addSystem(`${reader} read a message`);
+  });
+
+  socket.on('chat-message', async (msg)=>{
+    // store and show
+    await put('messages', msg);
+    addMessageDOM(msg);
+    // send read receipt
+    markRead(msg.id);
+  });
+
+  socket.on('file-message', async (payload)=>{
+    // payload: { id, fileId, fileName, fileType, arrayBuffer, sender, ts }
+    try{
+      // arrayBuffer comes as binary; store in files store
+      const blob = new Blob([payload.arrayBuffer], { type: payload.fileType || 'application/octet-stream' });
+      await put('files', { id: payload.fileId, blob });
+      const msg = { id: payload.id, sender: payload.sender, fileId: payload.fileId, fileName: payload.fileName, ts: payload.ts };
+      await put('messages', msg);
+      addMessageDOM(msg);
+      markRead(msg.id);
+    }catch(e){
+      console.error('file receive error', e);
+    }
+  });
+
+  // Sending messages
+  sendBtn.addEventListener('click', async ()=>{
+    const text = textInput.value.trim();
+    const file = fileInput.files[0];
+    if(!text && !file) return;
+    if(file){
+      // send file as ArrayBuffer via socket.io (binary)
+      const ab = await file.arrayBuffer();
+      const fileId = uid('file');
+      const payload = { id: uid('msg'), sender: name, fileId, fileName: file.name, fileType: file.type, ts: Date.now(), arrayBuffer: ab };
+      // store locally
+      await put('files', { id: fileId, blob: file });
+      await put('messages', { id: payload.id, sender: name, fileId, fileName: file.name, ts: payload.ts, out:true });
+      addMessageDOM({ id: payload.id, sender: name, fileId, fileName: file.name, ts: payload.ts, out:true });
+      socket.emit('file-message', payload);
+    }
+    if(text){
+      const msg = { id: uid('msg'), sender: name, text, ts: Date.now(), out:true };
+      await put('messages', msg);
+      addMessageDOM(msg);
+      socket.emit('chat-message', msg);
+      markRead(msg.id);
+      textInput.value='';
+    }
+    fileInput.value='';
+  });
+
+  // Clear local history
+  clearBtn.addEventListener('click', async ()=>{
+    if(!confirm('Clear local messages and files?')) return;
+    const d = await openDb();
+    const tx = d.transaction(['messages','files'],'readwrite'); tx.objectStore('messages').clear(); tx.objectStore('files').clear();
+    tx.oncomplete = ()=> { messagesEl.innerHTML=''; alert('Cleared'); };
+  });
+
+  setNameBtn.addEventListener('click', ()=>{ name = nameInput.value.trim() || name; localStorage.setItem('enhanced_chat_name', name); updateAvatar(); socket.emit('join', name); });
+
+  function addSystem(text){ const sys = { id: uid('sys'), sender:'System', text, ts: Date.now() }; put('messages', sys).then(()=> addMessageDOM(sys)); }
+})();
+</script>
+</body>
+</html>
