@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Enhanced Chat (Render)</title>
+<title>CONNECT a lightweight group chat application</title>
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <style>
-  :root{--bg:#f6f8fb;--card:#fff;--accent:#2563eb;--muted:#666}
+:root{--bg:#f6f8fb;--card:#fff;--accent:#2563eb;--muted:#666}
   body{
   	margin:0;
   	font-family:georgia;
@@ -17,36 +17,275 @@
   	margin-top: 1px;
   	}
   
-  .app{max-width:1000px;margin:24px auto;border-radius:8px;overflow:hidden;display:grid;grid-template-columns:1fr 320px;box-shadow:0 6px 24px rgba(16,24,40,0.08)}
-  .left{background:var(--card);display:flex;flex-direction:column;height:80vh}
-  header{padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px}
-  header .logo{font-weight:600;color:var(--accent)}
-  .messages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
-  .composer{padding:12px;border-top:1px solid #eee;display:flex;gap:8px;align-items:center}
-  textarea{flex:1;height:64px;padding:10px;border-radius:8px;border:1px solid #e6eef8;resize:none}
-  button{background:var(--accent);color:white;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
-  .right{padding:12px;background:#fbfdff;border-left:1px solid #eee;display:flex;flex-direction:column;gap:8px}
-  .user{display:flex;align-items:center;gap:10px}
-  .avatar{width:40px;height:40px;border-radius:50%;display:inline-grid;place-items:center;color:white;font-weight:600}
-  .meta{font-size:13px;color:var(--muted)}
-  .msg{max-width:70%;padding:10px;border-radius:10px;background:#f1f7ff;border:1px solid #e6f0ff}
-  .msg.out{margin-left:auto;background:#e6ffef;border-color:#cfeedd}
-  .typing{font-size:13px;color:var(--muted);padding:6px 10px}
-  .status{font-size:13px;color:var(--muted);margin-top:6px}
-  .file-link{display:inline-block;margin-top:6px;color:var(--accent);text-decoration:underline;cursor:pointer}
-  .small{font-size:13px;color:var(--muted)}
-  .users-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
-  .user-item{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px}
-  .read-badge{font-size:12px;color:var(--muted);margin-left:8px}
-  footer{font-size:12px;color:var(--muted);padding:8px}
+  .app{
+  	max-width:1000px;
+  	margin:24px auto;
+  	border-radius:8px;
+  	overflow:hidden;
+  	display:grid;
+  	grid-template-columns:1fr 320px;
+  	box-shadow:0 6px 24px rgba(16,24,40,0.08);
+  	color:teal;
+  	}
+  	
+  .left{
+  	background: linear-gradient(to right, maroon, teal);
+  	background:orane;
+  	display:flex;
+  	flex-direction:column;height:80vh;
+  	}
+  	
+  header{
+  	padding:12px 16px;
+  	border-bottom:1px solid teal;
+  	display:flex;
+  	align-items:center;
+  	gap:12px;
+  	}
+  	
+  header .logo{
+  	font-weight:600;
+  	color:orange;
+  	font-size:25px;
+  	}
+  	
+  .messages{
+  	flex:1;
+  	overflow:auto;
+  	padding:16px;
+  	display:flex;
+  	flex-direction:column;
+  	gap:8px;
+  	}
+  	
+  .composer{
+  	padding:12px;
+  	border-top:1px solid teal;
+  	display:flex;
+  	gap:8px;
+  	align-items:center;
+  	}
+  	
+  textarea{
+  	flex:1;
+  	height:64px;
+  	padding:10px;
+  	border-radius:8px;
+  	border:1px solid teal;
+  	resize:none;
+  	}
+  	
+  button{
+  	background:orange;
+  	color:teal;
+  	border:1px solid gray;
+  	padding:10px 12px;
+  	border-radius:8px;
+  	cursor:pointer;
+  	}
+  	
+  .right{
+  	padding:12px;
+  	background:gray;
+  	border-left:1px solid teal;
+  	display:flex;
+  	flex-direction:column;
+  	gap:8px;
+  	}
+  	
+  .user{
+  	display:flex;
+  	align-items:center;
+  	gap:10px;
+  	}
+  	
+  .avatar{
+  	width:40px;
+  	height:40px;
+  	border-radius:50%;
+  	display:inline-grid;
+  	place-items:center;
+  	color:white;
+  	font-weight:600;
+  	border: 1px solid white;
+  	} 
+  	
+  .meta{
+  	font-size:13px;
+  	color:var(--muted);
+  	}
+  	
+  .msg{
+  	max-width:70%;
+  	padding:10px;
+  	border-radius:10px;
+  	background:#f1f7ff;
+  	border:1px solid #e6f0ff);
+  	}
+  	
+  .msg.out{
+  	margin-left:auto;
+  	background:#e6ffef;
+  	border-color:#cfeedd;
+  	}
+  	
+  .typing{
+  	font-size:13px;
+  	color:var(--muted);
+  	padding:6px 10px);
+  	}
+  	
+  .status{
+  	font-size:13px;
+  	color:var(--muted);
+  	margin-top:6px);
+  	}
+  	
+  .file-link{
+  	display:inline-block;
+  	margin-top:6px;
+  	color:var(--accent);
+  	text-decoration:underline;
+  	cursor:pointer;
+  	}
+  	
+  .small{
+  	font-size:13px;
+  	color:var(--muted);
+  	width: 100px;
+  	}
+  	
+  .users-list{
+  	list-style:none;
+  	padding:0;
+  	margin:0;
+  	display:flex;
+  	flex-direction:column;
+  	gap:8px;
+  	}
+  	
+  .user-item{
+  	display:flex;
+  	align-items:center;
+  	gap:8px;
+  	padding:6px;
+  	border-radius:8px;
+  	}
+  	
+  .read-badge{
+  	font-size:12px;
+  	color:var(--muted);
+  	margin-left:8px);
+  	}
+  	
+  footer{
+  	font-size:12px;
+  	color:var(--muted);
+  	padding:8px);
+  	}
+  	 
+  	.picturee{
+width: 30px;
+height: 30px;
+border: 1px solid orange;
+border-radius: 20px;
+padding: 1px;
+margin-top: 6px;
+}
+
+/* -------------------------------
+   MOBILE FIXES & TELEGRAM TOUCHES
+--------------------------------*/
+
+/* Make layout stack on phones */
+@media (max-width: 720px) {
+  .app {
+    grid-template-columns: 1fr;
+    height: 100vh;
+  }
+
+  .left {
+    height: calc(100vh - 250px);
+  }
+
+  .right {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid teal;
+    padding-bottom: 80px;
+  }
+
+  header {
+    flex-wrap: wrap;
+  }
+
+  header .user {
+    width: 100%;
+    margin-top: 10px;
+    justify-content: flex-start;
+  }
+
+  .composer {
+    flex-direction: column;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 70px;
+  }
+
+  button {
+    width: 100%;
+  }
+  
+/* Telegram-style message bubbles */
+.msg {
+  border-radius: 14px !important;
+  padding: 10px 14px !important;
+  line-height: 1.4;
+}
+
+/* Telegram out bubble look */
+.msg.out {
+  background: #d2f7ff !important;
+  border-color: #9ae5ff !important;
+}
+
+/* Telegram incoming bubble look */
+.msg.in {
+  background: #ffffff;
+  border-color: #eeeeee;
+}
+
+/* Slight shadow like Telegram */
+.msg {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+}
+
+/* Display messages fully on narrow screens */
+.messages .msg {
+  max-width: 90%;
+}
+
+/* Keep typing indicator readable */
+.typing {
+  color: #444 !important;
+  font-style: italic;
+}
 </style>
 </head>
 <body>
-<div class="app" role="application">
-  <div class="left">
+<div class="app" role="application" style="height:100vh;">
+
+  <!-- LEFT PANE -->
+  <div class="left" style="height:100%;">
+
     <header>
-      <div class="logo">Enhanced Chat</div>
+      <img class="picturee" src="https://smtechnology133.github.io/africaonline/africaOnlineIcon.png"/>
+      
+      <div class="logo">Connect</div>
       <div style="flex:1"></div>
+
       <div class="user" title="Your name">
         <div id="myAvatar" class="avatar" style="background:#7c3aed">A</div>
         <input id="nameInput" placeholder="Your name" style="padding:6px;border-radius:6px;border:1px solid #ddd">
@@ -54,10 +293,16 @@
       </div>
     </header>
 
-    <div id="messages" class="messages" aria-live="polite"></div>
+    <!-- Force messages area to flex correctly -->
+    <div id="messages"
+         class="messages"
+         aria-live="polite"
+         style="min-height:0; flex:1;">
+    </div>
 
-    <div class="composer">
-      <input id="fileInput" type="file">
+    <!-- Composer fixed at bottom -->
+    <div class="composer" style="flex-shrink:0;">
+      <input id="fileInput" type="file"><br>
       <textarea id="textInput" placeholder="Write a message..."></textarea>
       <div style="display:flex;flex-direction:column;gap:6px">
         <button id="sendBtn">Send</button>
@@ -66,7 +311,8 @@
     </div>
   </div>
 
-  <aside class="right">
+  <!-- RIGHT PANE -->
+  <aside class="right" style="height:100%; overflow:auto;">
     <div class="small">Connection</div>
     <div id="connStatus" class="status">Connecting...</div>
 
@@ -76,10 +322,11 @@
 
     <hr>
     <div class="small">Typing</div>
-    <div id="typing" class="typing">â€”</div>
+    <div id="typing" class="typing">—</div>
 
     <footer>Files stored in your browser (IndexedDB). Server only relays messages.</footer>
   </aside>
+
 </div>
 
 <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
