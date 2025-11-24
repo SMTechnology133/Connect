@@ -1,11 +1,28 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { maxHttpBufferSize: 1e8 }); // allow larger binary
+const io = new Server(server, { maxHttpBufferSize: 1e8 });
 
-app.use(express.static('public'));
+// Serve static files with UTF-8 headers
+app.use(express.static("public", {
+    setHeaders: (res, path) => {
+        if (path.endsWith(".html")) {
+            res.setHeader("Content-Type", "text/html; charset=utf-8");
+        }
+        if (path.endsWith(".css")) {
+            res.setHeader("Content-Type", "text/css; charset=utf-8");
+        }
+        if (path.endsWith(".js")) {
+            res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+        }
+        if (path.endsWith(".json")) {
+            res.setHeader("Content-Type", "application/json; charset=utf-8");
+        }
+    }
+}));
 
 const PORT = process.env.PORT || 3000;
 
@@ -26,22 +43,18 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat-message', (msg) => {
-    // msg: { id, sender, text, ts }
     socket.broadcast.emit('chat-message', msg);
   });
 
   socket.on('file-message', (payload) => {
-    // payload: { id, fileName, fileType, fileId, arrayBuffer (binary) }
-    // broadcast binary-capable event
     socket.broadcast.emit('file-message', payload);
   });
 
   socket.on('message-read', (payload) => {
-    // payload: { messageId, reader }
     socket.broadcast.emit('message-read', payload);
   });
 
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', () => {
     socket.broadcast.emit('user-left', { id: socket.id, user: socket.data.user });
     console.log('disconnect', socket.id);
   });
