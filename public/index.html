@@ -1,11 +1,12 @@
-
-
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CONNECT a lightweight group chat application</title>
+
+<meta name="theme-color" content="teal"/> 
+  
 <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 <style>
 :root{--bg:#f6f8fb;--card:#fff;--accent:#2563eb;--muted:#666}
@@ -17,10 +18,9 @@
   	/* Use a subtle background color for better readability */
   	background-color: #f6f8fb;
   	color:teal; /* Dark gray for better contrast */
-  	border: 1px solid orange;
-  	border-radius: 6px;
   	margin-top: 1px;
-    box-sizing: border-box; /* Important for 100vh */
+  box-sizing: border-box;
+   /* Important for 100vh */
   	}
     /* Set body and html to 100% height to support vh units better */
     html, body {
@@ -33,12 +33,13 @@
   	/* REMOVED: margin: 24px auto; to make it fixed to the top/center */
     margin: 0 auto;
     /* ADDED: Set app height to 100% of the body */
-    height: 100%;
-  	border-radius:8px;
+   height: 100%;
+  	border-radius:4px;
   	overflow:hidden;
   	display:grid;
   	grid-template-columns:1fr 320px;
   	box-shadow:0 6px 24px rgba(16,24,40,0.08);
+  	border:1px solid orange;
   	}
 
   .left{
@@ -299,7 +300,6 @@ margin-top: 6px;
 .typing {
   color: #444 !important;
   font-style: italic;
-}
 }
 </style>
 </head>
