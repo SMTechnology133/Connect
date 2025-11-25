@@ -1,3 +1,5 @@
+
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,62 +12,81 @@
   body{
   	margin:0;
   	font-family:georgia;
-  	background: linear-gradient(to right, teal, maroon);
-  	color:#111;
+  	/* ADDED: Set body height to full viewport height for fixed layout */
+    height: 100vh;
+  	/* Use a subtle background color for better readability */
+  	background-color: #f6f8fb;
+  	color:teal; /* Dark gray for better contrast */
   	border: 1px solid orange;
   	border-radius: 6px;
   	margin-top: 1px;
+    box-sizing: border-box; /* Important for 100vh */
   	}
-  
+    /* Set body and html to 100% height to support vh units better */
+    html, body {
+      height: 100%;
+    }
+
+
   .app{
   	max-width:1000px;
-  	margin:24px auto;
+  	/* REMOVED: margin: 24px auto; to make it fixed to the top/center */
+    margin: 0 auto;
+    /* ADDED: Set app height to 100% of the body */
+    height: 100%;
   	border-radius:8px;
   	overflow:hidden;
   	display:grid;
   	grid-template-columns:1fr 320px;
   	box-shadow:0 6px 24px rgba(16,24,40,0.08);
-  	color:teal;
   	}
-  	
+
   .left{
-  	background: linear-gradient(to right, maroon, teal);
-  	background:orane;
+  	/* Use a clean background for the main chat area */
+  	background: linear-gradient(to right, teal, maroon);
   	display:flex;
-  	flex-direction:column;height:80vh;
+  	flex-direction:column;
+    /* CHANGED: 90vh to 100% to fill the app container */
+    height:100%;
   	}
-  	
+
   header{
   	padding:12px 16px;
-  	border-bottom:1px solid teal;
+  	/* Used orange for the separator */
+  	border-bottom:1px solid orange;
   	display:flex;
   	align-items:center;
   	gap:12px;
+  	color: teal;
+    flex-shrink: 0; /* Ensures header height is fixed */
   	}
-  	
+
   header .logo{
   	font-weight:600;
   	color:orange;
   	font-size:25px;
   	}
-  	
+
   .messages{
   	flex:1;
-  	overflow:auto;
+  	/* This is the key change: sets the message area to scroll */
+  	overflow-y:auto; 
+    overflow-x:hidden;
   	padding:16px;
   	display:flex;
   	flex-direction:column;
   	gap:8px;
   	}
-  	
+
   .composer{
   	padding:12px;
-  	border-top:1px solid teal;
+  	border-top:1px solid orange;
   	display:flex;
   	gap:8px;
   	align-items:center;
+  	flex-shrink: 0; /* Ensures composer height is fixed */
   	}
-  	
+
   textarea{
   	flex:1;
   	height:64px;
@@ -74,7 +95,7 @@
   	border:1px solid teal;
   	resize:none;
   	}
-  	
+
   button{
   	background:orange;
   	color:teal;
@@ -83,22 +104,26 @@
   	border-radius:8px;
   	cursor:pointer;
   	}
-  	
+
   .right{
   	padding:12px;
-  	background:gray;
+  	/* Lighter background for the sidebar */
+  	background: #f0f0f0;
   	border-left:1px solid teal;
   	display:flex;
   	flex-direction:column;
   	gap:8px;
+    /* CHANGED: 90vh to 100% to fill the app container */
+    height: 100%; 
+    overflow-y: auto; /* Allow the right pane to scroll if content is long */
   	}
-  	
+
   .user{
   	display:flex;
   	align-items:center;
   	gap:10px;
   	}
-  	
+
   .avatar{
   	width:40px;
   	height:40px;
@@ -108,39 +133,39 @@
   	color:white;
   	font-weight:600;
   	border: 1px solid white;
-  	} 
-  	
+  	}
+
   .meta{
   	font-size:13px;
   	color:var(--muted);
   	}
-  	
+
   .msg{
   	max-width:70%;
   	padding:10px;
   	border-radius:10px;
   	background:#f1f7ff;
-  	border:1px solid #e6f0ff);
+  	border:1px solid #e6f0ff;
   	}
-  	
+
   .msg.out{
   	margin-left:auto;
   	background:#e6ffef;
   	border-color:#cfeedd;
   	}
-  	
+
   .typing{
   	font-size:13px;
   	color:var(--muted);
-  	padding:6px 10px);
+  	padding:6px 10px;
   	}
-  	
+
   .status{
   	font-size:13px;
   	color:var(--muted);
-  	margin-top:6px);
+  	margin-top:6px;
   	}
-  	
+
   .file-link{
   	display:inline-block;
   	margin-top:6px;
@@ -148,13 +173,13 @@
   	text-decoration:underline;
   	cursor:pointer;
   	}
-  	
+
   .small{
   	font-size:13px;
   	color:var(--muted);
   	width: 100px;
   	}
-  	
+
   .users-list{
   	list-style:none;
   	padding:0;
@@ -163,7 +188,7 @@
   	flex-direction:column;
   	gap:8px;
   	}
-  	
+
   .user-item{
   	display:flex;
   	align-items:center;
@@ -171,20 +196,20 @@
   	padding:6px;
   	border-radius:8px;
   	}
-  	
+
   .read-badge{
   	font-size:12px;
   	color:var(--muted);
-  	margin-left:8px);
+  	margin-left:8px;
   	}
-  	
+
   footer{
   	font-size:12px;
   	color:var(--muted);
-  	padding:8px);
+  	padding:8px;
   	}
-  	 
-  	.picturee{
+
+  .picturee{
 width: 30px;
 height: 30px;
 border: 1px solid orange;
@@ -197,22 +222,27 @@ margin-top: 6px;
    MOBILE FIXES & TELEGRAM TOUCHES
 --------------------------------*/
 
-/* Make layout stack on phones */
 @media (max-width: 720px) {
   .app {
     grid-template-columns: 1fr;
     height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .left {
-    height: calc(100vh - 250px);
+    /* Adjusted height calculation for 100% mobile view */
+    height: 100%; 
+    min-height: 100vh; /* Ensure full coverage */
   }
 
+  /* The composer and header are fixed height (due to flex-shrink: 0), 
+     so the messages area (flex: 1) correctly fills the remaining space 
+     and provides the only scrollbar. */
+
   .right {
-    width: 100%;
-    border-left: none;
-    border-top: 1px solid teal;
-    padding-bottom: 80px;
+    display: none;
   }
 
   header {
@@ -227,62 +257,56 @@ margin-top: 6px;
 
   .composer {
     flex-direction: column;
+    padding-bottom: 20px;
+    background: linear-gradient(to right, teal, maroon);
   }
 
   textarea {
     width: 100%;
     min-height: 70px;
+    border: 1px solid orange;
+    color: orange;
+    background: maroon;
+    padding: 2px;
   }
 
   button {
     width: 100%;
   }
-  
+
 /* Telegram-style message bubbles */
 .msg {
   border-radius: 14px !important;
   padding: 10px 14px !important;
   line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
 
-/* Telegram out bubble look */
 .msg.out {
   background: #d2f7ff !important;
   border-color: #9ae5ff !important;
 }
 
-/* Telegram incoming bubble look */
 .msg.in {
   background: #ffffff;
   border-color: #eeeeee;
 }
 
-/* Slight shadow like Telegram */
-.msg {
-  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
-}
-
-/* Display messages fully on narrow screens */
 .messages .msg {
   max-width: 90%;
 }
 
-/* Keep typing indicator readable */
 .typing {
   color: #444 !important;
   font-style: italic;
 }
+}
 </style>
 </head>
 <body>
-<div class="app" role="application" style="height:100vh;">
-
-  <!-- LEFT PANE -->
-  <div class="left" style="height:100%;">
-
-    <header>
+<div class="app" role="application"> <div class="left"> <header>
       <img class="picturee" src="https://smtechnology133.github.io/africaonline/africaOnlineIcon.png"/>
-      
+
       <div class="logo">Connect</div>
       <div style="flex:1"></div>
 
@@ -293,16 +317,12 @@ margin-top: 6px;
       </div>
     </header>
 
-    <!-- Force messages area to flex correctly -->
     <div id="messages"
          class="messages"
          aria-live="polite"
-         style="min-height:0; flex:1;">
-    </div>
+         style="min-height:0;"> </div>
 
-    <!-- Composer fixed at bottom -->
-    <div class="composer" style="flex-shrink:0;">
-      <input id="fileInput" type="file"><br>
+    <div class="composer"> <input id="fileInput" type="file"><br>
       <textarea id="textInput" placeholder="Write a message..."></textarea>
       <div style="display:flex;flex-direction:column;gap:6px">
         <button id="sendBtn">Send</button>
@@ -311,9 +331,7 @@ margin-top: 6px;
     </div>
   </div>
 
-  <!-- RIGHT PANE -->
-  <aside class="right" style="height:100%; overflow:auto;">
-    <div class="small">Connection</div>
+  <aside class="right"> <div class="small">Connection</div>
     <div id="connStatus" class="status">Connecting...</div>
 
     <hr>
@@ -348,6 +366,7 @@ margin-top: 6px;
   await openDb();
 
   // DOM
+  // NOTE: If deploying to a server, replace io() with io('YOUR_SERVER_URL')
   const socket = io();
   const messagesEl = document.getElementById('messages');
   const usersEl = document.getElementById('users');
@@ -401,6 +420,11 @@ margin-top: 6px;
   // User presence
   socket.on('user-joined', ({id,user})=>{ users[id]=user; renderUsers(); addSystem(`${user} joined`); });
   socket.on('user-left', ({id,user})=>{ delete users[id]; renderUsers(); addSystem(`${user||'Someone'} left`); });
+  // Add a listener for the initial user list upon connection
+  socket.on('users-list', (initialUsers) => { 
+      users = initialUsers;
+      renderUsers();
+  });
 
   function renderUsers(){
     usersEl.innerHTML=''; for(const id in users){ const li=document.createElement('li'); li.className='user-item'; const av=document.createElement('div'); av.className='avatar'; av.style.background=colorFrom(users[id]); av.textContent=initialsFrom(users[id]); const nm=document.createElement('div'); nm.textContent=users[id]; li.appendChild(av); li.appendChild(nm); usersEl.appendChild(li); }
@@ -415,7 +439,7 @@ margin-top: 6px;
   });
   socket.on('typing', ({user})=>{ typingUsers.add(user); updateTyping(); });
   socket.on('stop-typing', ({user})=>{ typingUsers.delete(user); updateTyping(); });
-  function updateTyping(){ typingEl.textContent = typingUsers.size ? Array.from(typingUsers).join(', ')+' is typing...' : 'â€”'; }
+  function updateTyping(){ typingEl.textContent = typingUsers.size ? Array.from(typingUsers).join(', ')+' is typing...' : '—'; }
 
   // Read receipts
   function markRead(messageId){
@@ -432,7 +456,7 @@ margin-top: 6px;
     // store and show
     await put('messages', msg);
     addMessageDOM(msg);
-    // send read receipt
+    // send read receipt ONLY for incoming messages
     markRead(msg.id);
   });
 
@@ -445,6 +469,7 @@ margin-top: 6px;
       const msg = { id: payload.id, sender: payload.sender, fileId: payload.fileId, fileName: payload.fileName, ts: payload.ts };
       await put('messages', msg);
       addMessageDOM(msg);
+      // send read receipt ONLY for incoming messages
       markRead(msg.id);
     }catch(e){
       console.error('file receive error', e);
@@ -472,7 +497,7 @@ margin-top: 6px;
       await put('messages', msg);
       addMessageDOM(msg);
       socket.emit('chat-message', msg);
-      markRead(msg.id);
+      // Removed markRead(msg.id); for out-going messages
       textInput.value='';
     }
     fileInput.value='';
