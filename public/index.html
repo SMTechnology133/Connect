@@ -306,7 +306,10 @@ margin-top: 6px;
 <div class="app" role="application"> <div class="left"> <header>
       <img class="picturee" src="https://smtechnology133.github.io/africaonline/africaOnlineIcon.png"/>
 
-      <div class="logo">Connect</div>
+      <div class="logo">Connect</div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      <button onclick="liveStream();" class="small">Live Stream</button>
+      
       <div style="flex:1"></div>
 
       <div class="user" title="Your name">
@@ -322,6 +325,7 @@ margin-top: 6px;
          style="min-height:0;"> </div>
 
     <div class="composer"> <input id="fileInput" type="file"><br>
+    	
       <textarea id="textInput" placeholder="Write a message..."></textarea>
       <div style="display:flex;flex-direction:column;gap:6px">
         <button id="sendBtn">Send</button>
@@ -346,7 +350,14 @@ margin-top: 6px;
 
 </div>
 
+<script>
+	liveStream=()=>{
+	open("https://videostream-ns46.onrender.com/");
+}
+</script>
+
 <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+
 <script>
 (async function(){
   // Utilities
