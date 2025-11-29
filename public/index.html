@@ -419,7 +419,7 @@ function saveProfile(){
   setMyUser(u);
   updateAvatarUI();
   // emit join with full object (socket exists below; use safe emit after socket ready)
-  if(socket && socket.connected) socket.emit('join', u);
+  if(window.socket && window.socket.connected) window.socket.emit('join', u);
   closeProfile();
 }
 
@@ -438,7 +438,7 @@ function updateAvatarUI(){
 }
 updateAvatarUI();
 
-/* IndexedDB helpers (unchanged) */
+/* IndexedDB helpers */
 const DB_NAME='enhanced_chat_db', DB_VER=1;
 let db;
 function openDb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB_NAME,DB_VER); r.onupgradeneeded = e => { const d=e.target.result; if(!d.objectStoreNames.contains('messages')) d.createObjectStore('messages',{keyPath:'id'}); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files',{keyPath:'id'}); }; r.onsuccess = ()=>{ db=r.result; res(db); }; r.onerror = ()=> rej(r.error); }); }
@@ -446,7 +446,7 @@ function put(store, obj){ return new Promise(async(res,rej)=>{ const d=await ope
 function getAll(store){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction([store],'readonly'); const out=[]; const req = tx.objectStore(store).openCursor(); req.onsuccess = e => { const cur=e.target.result; if(!cur) return res(out); out.push(cur.value); cur.continue(); }; req.onerror = ()=> rej(req.error); }); }
 function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction(['files'],'readonly'); const req=tx.objectStore('files').get(id); req.onsuccess=()=>res(req.result?req.result.blob:null); req.onerror=()=>rej(req.error); }); }
 
-/* START: Socket + DOM logic (adapted to include avatar sync) */
+/* START: Socket + DOM logic (FIXED) */
 (async function(){
   await openDb();
 
@@ -467,10 +467,16 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
   // state
   let users = {}; // server-sent map id -> { name, avatar }
   let typingUsers = new Set();
+  let isSending = false; // Prevent multiple sends
 
   function addMessageDOM(m){
+    // Check if message already exists to prevent duplicates
+    const existingMsg = document.querySelector(`[data-msg-id="${m.id}"]`);
+    if (existingMsg) return;
+    
     const div = document.createElement('div');
     div.className = 'msg ' + (m.out?'out':'in');
+    div.setAttribute('data-msg-id', m.id);
 
     // avatar (sender)
     const avWrap = document.createElement('div');
@@ -583,6 +589,10 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
 
   // incoming chat messages
   socket.on('chat-message', async (msg)=>{
+    // Only add if not our own message (our own messages are added optimistically)
+    const myUser = getMyUser();
+    if (msg.sender === myUser.name) return;
+    
     await put('messages', msg);
     addMessageDOM(msg);
     markRead(msg.id);
@@ -590,12 +600,14 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
 
   socket.on('file-message', async (payload)=>{
     try{
-      // payload: { id, fileId, fileName, fileType, arrayBuffer (maybe), senderObj, ts }
+      // Only add if not our own file message
+      const myUser = getMyUser();
+      if (payload.sender === myUser.name) return;
+      
       let blob = null;
       if(payload.arrayBuffer){
         blob = new Blob([payload.arrayBuffer], { type: payload.fileType || 'application/octet-stream' });
       } else if(payload.base64){
-        // base64 string -> convert to blob
         const b64 = payload.base64.split(',')[1];
         const binary = atob(b64);
         const len = binary.length;
@@ -613,65 +625,127 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
     }catch(e){ console.error('file receive error', e); }
   });
 
-  // sending messages
+  // FIXED: sending messages
   sendBtn.addEventListener('click', async ()=>{
+    if (isSending) return; // Prevent multiple sends
+    
     const text = textInput.value.trim();
     const file = fileInput.files[0];
     const myUser = getMyUser();
 
-    if(!text && !file) return;
-
-    if(file){
-      const ab = await file.arrayBuffer();
-      const fileId = uid('file');
-      // If you want to send as binary arrayBuffer:
-      // socket.emit('file-message', { id: uid('msg'), sender: myUser.name, senderObj: myUser, fileId, fileName: file.name, fileType: file.type, ts: Date.now(), arrayBuffer: ab });
-      // But to be robust across transports, we'll send base64 for small files (avatar-sized or small attachments).
-      const reader = new FileReader();
-      reader.onload = async (ev)=>{
-        const base64 = ev.target.result; // data:<type>;base64,...
-        const payload = { id: uid('msg'), sender: myUser.name, senderObj: myUser, fileId, fileName: file.name, fileType: file.type, ts: Date.now(), base64 };
-        // store locally
-        await put('files', { id: fileId, blob: file });
-        await put('messages', { id: payload.id, sender: myUser.name, senderObj: myUser, fileId, fileName: file.name, ts: payload.ts, out:true });
-        addMessageDOM({ id: payload.id, sender: myUser.name, senderObj: myUser, fileId, fileName: file.name, ts: payload.ts, out:true });
-        socket.emit('file-message', payload);
-      };
-      reader.readAsDataURL(file);
+    if(!text && !file) {
+      alert('Please enter a message or select a file');
+      return;
     }
 
-    if(text){
-      const msg = { id: uid('msg'), sender: myUser.name, senderObj: myUser, text, ts: Date.now(), out:true };
-      await put('messages', msg);
-      addMessageDOM(msg);
-      socket.emit('chat-message', msg);
-      textInput.value='';
-    }
+    isSending = true;
+    try {
+      if(file){
+        const reader = new FileReader();
+        reader.onload = async (ev)=>{
+          const base64 = ev.target.result;
+          const fileId = uid('file');
+          const payload = { 
+            id: uid('msg'), 
+            sender: myUser.name, 
+            senderObj: myUser, 
+            fileId, 
+            fileName: file.name, 
+            fileType: file.type, 
+            ts: Date.now(), 
+            base64 
+          };
+          
+          // store locally
+          await put('files', { id: fileId, blob: file });
+          const localMsg = { 
+            id: payload.id, 
+            sender: myUser.name, 
+            senderObj: myUser, 
+            fileId, 
+            fileName: file.name, 
+            ts: payload.ts, 
+            out: true 
+          };
+          await put('messages', localMsg);
+          addMessageDOM(localMsg);
+          socket.emit('file-message', payload);
+          
+          // Clear file input
+          fileInput.value = '';
+          isSending = false;
+        };
+        reader.readAsDataURL(file);
+      }
 
-    fileInput.value='';
+      if(text){
+        const msg = { 
+          id: uid('msg'), 
+          sender: myUser.name, 
+          senderObj: myUser, 
+          text, 
+          ts: Date.now(), 
+          out: true 
+        };
+        await put('messages', msg);
+        addMessageDOM(msg);
+        socket.emit('chat-message', msg);
+        textInput.value = '';
+        isSending = false;
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Error sending message: ' + error.message);
+      isSending = false;
+    }
+  });
+
+  // Allow sending with Enter key (but Shift+Enter for new line)
+  textInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
+    }
   });
 
   // clear local history
   clearBtn.addEventListener('click', async ()=>{
     if(!confirm('Clear local messages and files?')) return;
     const d = await openDb();
-    const tx = d.transaction(['messages','files'],'readwrite'); tx.objectStore('messages').clear(); tx.objectStore('files').clear();
-    tx.oncomplete = ()=> { messagesEl.innerHTML=''; alert('Cleared'); };
+    const tx = d.transaction(['messages','files'],'readwrite'); 
+    tx.objectStore('messages').clear(); 
+    tx.objectStore('files').clear();
+    tx.oncomplete = ()=> { 
+      messagesEl.innerHTML=''; 
+      alert('Cleared'); 
+    };
   });
 
   // set name input (inline)
   setNameBtn.addEventListener('click', ()=>{
     const v = (nameInput.value || '').trim();
-    if(!v) return;
+    if(!v) {
+      alert('Please enter a name');
+      return;
+    }
     const u = getMyUser();
     u.name = v;
     setMyUser(u);
     updateAvatarUI();
     socket.emit('join', u);
+    alert('Name updated to: ' + v);
   });
 
   // helper system note
-  function addSystem(text){ const sys = { id: uid('sys'), sender:'System', text, ts: Date.now() }; put('messages', sys).then(()=> addMessageDOM(sys)); }
+  function addSystem(text){ 
+    const sys = { 
+      id: uid('sys'), 
+      sender:'System', 
+      text, 
+      ts: Date.now() 
+    }; 
+    put('messages', sys).then(()=> addMessageDOM(sys)); 
+  }
 
 })();
 </script>
