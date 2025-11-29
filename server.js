@@ -1,30 +1,26 @@
-// server.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-// allow large binary payloads (files) if needed
-const io = new Server(server, { maxHttpBufferSize: 1e8 });
+// allow large binary payloads (files)
+const io = new Server(server, { 
+  maxHttpBufferSize: 1e8,
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
-// Serve static files with UTF-8 headers
-app.use(express.static("public", {
-    setHeaders: (res, path) => {
-        if (path.endsWith(".html")) {
-            res.setHeader("Content-Type", "text/html; charset=utf-8");
-        }
-        if (path.endsWith(".css")) {
-            res.setHeader("Content-Type", "text/css; charset=utf-8");
-        }
-        if (path.endsWith(".js")) {
-            res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-        }
-        if (path.endsWith(".json")) {
-            res.setHeader("Content-Type", "application/json; charset=utf-8");
-        }
-    }
-}));
+// Serve static files from the same directory
+app.use(express.static(__dirname));
+
+// Serve the main HTML file
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -32,38 +28,56 @@ const PORT = process.env.PORT || 3000;
 const users = {};
 
 io.on('connection', (socket) => {
-  console.log('connect', socket.id);
+  console.log('User connected:', socket.id);
 
   // Immediately send current users list to the connecting client
   socket.emit('users-list', users);
 
   socket.on('join', (userObj) => {
     // Expect userObj = { name: 'Alice', avatar: 'data:image/png;base64,...' } or avatar null
-    socket.data.user = userObj || { name: 'Anonymous', avatar: null };
-    users[socket.id] = socket.data.user;
+    if (!userObj || typeof userObj !== 'object') {
+      userObj = { name: 'Anonymous', avatar: null };
+    }
+    
+    socket.data.user = userObj;
+    users[socket.id] = userObj;
 
     // Notify everyone (including the new socket)
     io.emit('users-list', users);
-    socket.broadcast.emit('user-joined', { id: socket.id, user: socket.data.user });
+    socket.broadcast.emit('user-joined', { id: socket.id, user: userObj });
 
-    console.log('user joined', socket.id, socket.data.user && socket.data.user.name);
+    console.log('User joined:', socket.id, userObj.name);
   });
 
   socket.on('typing', (payload) => {
-    socket.broadcast.emit('typing', { id: socket.id, user: socket.data.user ? socket.data.user.name : null, userObj: socket.data.user, ...payload });
+    const userName = socket.data.user ? socket.data.user.name : 'Anonymous';
+    socket.broadcast.emit('typing', { 
+      user: userName, 
+      userObj: socket.data.user 
+    });
   });
 
   socket.on('stop-typing', (payload) => {
-    socket.broadcast.emit('stop-typing', { id: socket.id, user: socket.data.user ? socket.data.user.name : null, userObj: socket.data.user, ...payload });
+    const userName = socket.data.user ? socket.data.user.name : 'Anonymous';
+    socket.broadcast.emit('stop-typing', { 
+      user: userName, 
+      userObj: socket.data.user 
+    });
   });
 
   socket.on('chat-message', (msg) => {
-    // msg should include senderObj if client provided it; broadcast unchanged
+    // Add senderObj to message if not present
+    if (!msg.senderObj && socket.data.user) {
+      msg.senderObj = socket.data.user;
+    }
     socket.broadcast.emit('chat-message', msg);
   });
 
   socket.on('file-message', (payload) => {
-    // payload expected to contain arrayBuffer or base64 (clients handle storing)
+    // Add senderObj to payload if not present
+    if (!payload.senderObj && socket.data.user) {
+      payload.senderObj = socket.data.user;
+    }
     socket.broadcast.emit('file-message', payload);
   });
 
@@ -77,7 +91,7 @@ io.on('connection', (socket) => {
     delete users[socket.id];
     socket.broadcast.emit('user-left', { id: socket.id, user: leftUser });
     io.emit('users-list', users);
-    console.log('disconnect', socket.id, leftUser && leftUser.name);
+    console.log('User disconnected:', socket.id, leftUser && leftUser.name);
   });
 });
 
