@@ -18,6 +18,7 @@
     color:teal;
     margin-top: 1px;
     box-sizing: border-box;
+    overflow: hidden; /* Prevent body scroll */
   }
   html, body { height: 100%; }
 
@@ -43,7 +44,6 @@
   header{
     padding:12px 16px;
     border-bottom:1px solid orange;
-    /*display:flex;*/
     align-items:center;
     gap:12px;
     color: teal;
@@ -64,6 +64,7 @@
     display:flex;
     flex-direction:column;
     gap:8px;
+    min-height: 0; /* Crucial for flex scrolling */
   }
 
   .composer{
@@ -72,6 +73,7 @@
     gap:8px;
     align-items:center;
     flex-shrink: 0;
+    padding: 8px;
   }
 
   textarea{
@@ -80,6 +82,8 @@
     border:1px solid teal;
     resize:none;
     margin:2px;
+    padding: 8px;
+    box-sizing: border-box;
   }
 
   button{
@@ -309,15 +313,16 @@
       <div class="user" title="Your name">
         <div id="myAvatar" class="picturee" style="background:#7c3aed">A</div>
         
-        <input style="padding:6px;border-radius:6px;border:1px solid orange;width:145px" id="nameInput" placeholder="Your name" style="padding:6px;border-radius:6px;border:1px solid #ddd">
+        <input style="padding:6px;border-radius:6px;border:1px solid orange;width:145px" id="nameInput" placeholder="Your name">
         <button id="setNameBtn" class="small">Set</button>
       </div>
     </header>
 
-    <div id="messages" class="messages" aria-live="polite" style="min-height:0;"></div>
+    <div id="messages" class="messages" aria-live="polite"></div>
 
     <div class="composer">
-      <input id="fileInput" type="file"><br>
+      <input id="fileInput" type="file" style="display:none">
+      <button onclick="document.getElementById('fileInput').click()" class="small">Add File</button>
       <textarea id="textInput" placeholder="Write a message..."></textarea>
       <div style="display:flex;flex-direction:column;gap:6px">
         <button id="sendBtn">Send</button>
@@ -403,7 +408,6 @@ document.getElementById('profilePicInput').addEventListener('change', async (e)=
   reader.onload = function(ev){
     const dataUrl = ev.target.result;
     document.getElementById('avatarPreview').innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
-    // temporarily store preview in dataset
     document.getElementById('profileModal').dataset.avatarPreview = dataUrl;
   };
   reader.readAsDataURL(f);
@@ -418,7 +422,6 @@ function saveProfile(){
   u.avatar = avatar || u.avatar;
   setMyUser(u);
   updateAvatarUI();
-  // emit join with full object (socket exists below; use safe emit after socket ready)
   if(window.socket && window.socket.connected) window.socket.emit('join', u);
   closeProfile();
 }
@@ -446,92 +449,113 @@ function put(store, obj){ return new Promise(async(res,rej)=>{ const d=await ope
 function getAll(store){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction([store],'readonly'); const out=[]; const req = tx.objectStore(store).openCursor(); req.onsuccess = e => { const cur=e.target.result; if(!cur) return res(out); out.push(cur.value); cur.continue(); }; req.onerror = ()=> rej(req.error); }); }
 function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction(['files'],'readonly'); const req=tx.objectStore('files').get(id); req.onsuccess=()=>res(req.result?req.result.blob:null); req.onerror=()=>rej(req.error); }); }
 
-/* START: Socket + DOM logic (FIXED) */
+/* START: Socket + DOM logic (COMPLETELY REWRITTEN) */
 (async function(){
   await openDb();
 
   const socket = io();
-  window.socket = socket; // expose to other functions (profile save)
+  window.socket = socket;
   const messagesEl = document.getElementById('messages');
   const usersEl = document.getElementById('users');
   const typingEl = document.getElementById('typing');
   const connStatus = document.getElementById('connStatus');
   const nameInput = document.getElementById('nameInput');
   const setNameBtn = document.getElementById('setNameBtn');
-  const myAvatar = document.getElementById('myAvatar');
   const fileInput = document.getElementById('fileInput');
   const textInput = document.getElementById('textInput');
   const sendBtn = document.getElementById('sendBtn');
   const clearBtn = document.getElementById('clearBtn');
 
   // state
-  let users = {}; // server-sent map id -> { name, avatar }
+  let users = {};
   let typingUsers = new Set();
-  let isSending = false; // Prevent multiple sends
+  let isProcessing = false;
 
   function addMessageDOM(m){
-    // Check if message already exists to prevent duplicates
-    const existingMsg = document.querySelector(`[data-msg-id="${m.id}"]`);
-    if (existingMsg) return;
+    // Check if message already exists
+    if (document.querySelector(`[data-msg-id="${m.id}"]`)) return;
     
     const div = document.createElement('div');
     div.className = 'msg ' + (m.out?'out':'in');
     div.setAttribute('data-msg-id', m.id);
 
-    // avatar (sender)
+    // Avatar
     const avWrap = document.createElement('div');
     avWrap.className = 'senderAvatar';
-    if(m.senderObj && m.senderObj.avatar){
-      avWrap.innerHTML = '<img src="'+m.senderObj.avatar+'" style="width:100%;height:100%;object-fit:cover">';
+    const senderData = m.senderObj || users[m.sender] || { name: m.sender };
+    
+    if(senderData.avatar){
+      avWrap.innerHTML = '<img src="'+senderData.avatar+'" style="width:100%;height:100%;object-fit:cover">';
     } else {
-      const initials = initialsFrom(m.sender || (m.senderObj && m.senderObj.name) || 'A');
-      const bg = colorFrom(m.sender || (m.senderObj && m.senderObj.name) || '');
+      const initials = initialsFrom(senderData.name || 'A');
+      const bg = colorFrom(senderData.name || '');
       avWrap.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:'+bg+';color:#fff;font-weight:600">'+initials+'</div>';
     }
 
     const body = document.createElement('div');
     body.className = 'body';
 
-    const meta = document.createElement('div'); meta.className='meta small';
-    const senderName = (m.senderObj && m.senderObj.name) || m.sender || 'Anonymous';
-    meta.textContent = senderName + ' · ' + new Date(m.ts||Date.now()).toLocaleString();
+    const meta = document.createElement('div'); 
+    meta.className='meta small';
+    meta.textContent = (senderData.name || 'Anonymous') + ' · ' + new Date(m.ts||Date.now()).toLocaleString();
 
-    const content = document.createElement('div'); content.style.marginTop='6px';
-    if(m.text) content.appendChild(document.createTextNode(m.text));
+    const content = document.createElement('div'); 
+    content.style.marginTop='6px';
+    
+    if(m.text) {
+      content.appendChild(document.createTextNode(m.text));
+    }
+    
     if(m.fileId){
-      const a = document.createElement('a'); a.className='file-link'; a.textContent = ' ' + (m.fileName||'file'); a.href='#';
-      a.onclick = async (e)=>{ e.preventDefault(); const blob = await getFile(m.fileId); if(!blob){ alert('File not in your browser storage.'); return; } const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href=url; link.download = m.fileName || 'file'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),10000); };
+      const a = document.createElement('a'); 
+      a.className='file-link'; 
+      a.textContent = ' ' + (m.fileName||'file'); 
+      a.href='#';
+      a.onclick = async (e)=>{ 
+        e.preventDefault(); 
+        const blob = await getFile(m.fileId); 
+        if(!blob){ 
+          alert('File not in your browser storage.'); 
+          return; 
+        } 
+        const url = URL.createObjectURL(blob); 
+        const link = document.createElement('a'); 
+        link.href=url; 
+        link.download = m.fileName || 'file'; 
+        document.body.appendChild(link); 
+        link.click(); 
+        link.remove(); 
+        setTimeout(()=>URL.revokeObjectURL(url),10000); 
+      };
       content.appendChild(document.createElement('br'));
       content.appendChild(a);
-      const rb = document.createElement('span'); rb.className='read-badge'; rb.textContent = m.readBy ? ('Read by: '+m.readBy.join(', ')) : '';
-      content.appendChild(rb);
     }
 
     body.appendChild(meta);
     body.appendChild(content);
-
     div.appendChild(avWrap);
     div.appendChild(body);
-
     messagesEl.appendChild(div);
+    
+    // Auto scroll to bottom
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  // load history
+  // Load message history
   const hist = await getAll('messages');
   hist.forEach(m=> addMessageDOM(m));
 
-  // connection status
+  // Socket event handlers
   socket.on('connect', ()=>{
     connStatus.textContent = 'Connected';
-    // when connecting, tell server about our profile
     const u = getMyUser();
     socket.emit('join', u);
   });
+  
   socket.on('disconnect', ()=> connStatus.textContent = 'Disconnected');
   socket.on('connect_error', ()=> connStatus.textContent = 'Connection error');
 
-  // users-list (full map)
+  // Users management
   socket.on('users-list', (serverUsers) => {
     users = serverUsers || {};
     renderUsers();
@@ -540,13 +564,13 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
   socket.on('user-joined', ({id, user})=>{
     users[id] = user;
     renderUsers();
-    addSystem(`${(user && user.name) || 'Someone'} joined`);
+    addSystem(`${user?.name || 'Someone'} joined`);
   });
 
   socket.on('user-left', ({id, user})=>{
     delete users[id];
     renderUsers();
-    addSystem(`${(user && user.name) || 'Someone'} left`);
+    addSystem(`${user?.name || 'Someone'} left`);
   });
 
   function renderUsers(){
@@ -554,60 +578,62 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
     for(const id in users){
       const li = document.createElement('li');
       li.className = 'user-item';
-      const av = document.createElement('div'); av.className='avatar';
-      if(users[id] && users[id].avatar){
+      const av = document.createElement('div'); 
+      av.className='avatar';
+      if(users[id]?.avatar){
         av.innerHTML = '<img src="'+users[id].avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
-        av.style.border = '1px solid white';
       } else {
-        av.textContent = initialsFrom(users[id] ? users[id].name : '?');
-        av.style.background = colorFrom(users[id] ? users[id].name : '');
+        av.textContent = initialsFrom(users[id]?.name || '?');
+        av.style.background = colorFrom(users[id]?.name || '');
       }
-      const nm = document.createElement('div'); nm.textContent = users[id] ? users[id].name : 'Anonymous';
-      li.appendChild(av); li.appendChild(nm);
+      const nm = document.createElement('div'); 
+      nm.textContent = users[id]?.name || 'Anonymous';
+      li.appendChild(av); 
+      li.appendChild(nm);
       usersEl.appendChild(li);
     }
   }
 
-  // typing indicator
+  // Typing indicator
   let typingTimer = null;
   textInput.addEventListener('input', ()=> {
     socket.emit('typing', { });
     if(typingTimer) clearTimeout(typingTimer);
     typingTimer = setTimeout(()=> socket.emit('stop-typing', {}), 1200);
   });
-  socket.on('typing', ({user, userObj})=>{ if(user) typingUsers.add(user); updateTyping(); });
-  socket.on('stop-typing', ({user, userObj})=>{ if(user) typingUsers.delete(user); updateTyping(); });
-  function updateTyping(){ typingEl.textContent = typingUsers.size ? Array.from(typingUsers).join(', ')+' is typing...' : '—'; }
-
-  // read receipts
-  function markRead(messageId){
-    socket.emit('message-read', { messageId, reader: getMyUser().name });
-  }
-  socket.on('message-read', ({messageId, reader})=>{
-    addSystem(`${reader} read a message`);
+  
+  socket.on('typing', ({user})=>{ 
+    if(user) typingUsers.add(user); 
+    updateTyping(); 
   });
+  
+  socket.on('stop-typing', ({user})=>{ 
+    if(user) typingUsers.delete(user); 
+    updateTyping(); 
+  });
+  
+  function updateTyping(){ 
+    typingEl.textContent = typingUsers.size ? 
+      Array.from(typingUsers).join(', ')+' is typing...' : '—'; 
+  }
 
-  // incoming chat messages
+  // Incoming messages
   socket.on('chat-message', async (msg)=>{
-    // Only add if not our own message (our own messages are added optimistically)
+    // Don't add our own messages (they're added optimistically)
     const myUser = getMyUser();
     if (msg.sender === myUser.name) return;
     
     await put('messages', msg);
     addMessageDOM(msg);
-    markRead(msg.id);
   });
 
   socket.on('file-message', async (payload)=>{
     try{
-      // Only add if not our own file message
       const myUser = getMyUser();
       if (payload.sender === myUser.name) return;
       
       let blob = null;
-      if(payload.arrayBuffer){
-        blob = new Blob([payload.arrayBuffer], { type: payload.fileType || 'application/octet-stream' });
-      } else if(payload.base64){
+      if(payload.base64){
         const b64 = payload.base64.split(',')[1];
         const binary = atob(b64);
         const len = binary.length;
@@ -615,19 +641,31 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
         for(let i=0;i<len;i++) u8[i] = binary.charCodeAt(i);
         blob = new Blob([u8], { type: payload.fileType || 'application/octet-stream' });
       }
+      
       if(blob){
         await put('files', { id: payload.fileId, blob });
       }
-      const msg = { id: payload.id, sender: payload.sender, senderObj: payload.senderObj, fileId: payload.fileId, fileName: payload.fileName, ts: payload.ts };
+      
+      const msg = { 
+        id: payload.id, 
+        sender: payload.sender, 
+        senderObj: payload.senderObj, 
+        fileId: payload.fileId, 
+        fileName: payload.fileName, 
+        ts: payload.ts 
+      };
+      
       await put('messages', msg);
       addMessageDOM(msg);
-      markRead(msg.id);
-    }catch(e){ console.error('file receive error', e); }
+    }catch(e){ 
+      console.error('File receive error', e); 
+      addSystem('Error receiving file: ' + e.message);
+    }
   });
 
-  // FIXED: sending messages
-  sendBtn.addEventListener('click', async ()=>{
-    if (isSending) return; // Prevent multiple sends
+  // Send message function - COMPLETELY REWRITTEN
+  async function sendMessage() {
+    if (isProcessing) return;
     
     const text = textInput.value.trim();
     const file = fileInput.files[0];
@@ -638,92 +676,130 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
       return;
     }
 
-    isSending = true;
+    isProcessing = true;
+    
     try {
-      if(file){
+      // Handle file upload
+      if (file) {
+        const fileId = uid('file');
         const reader = new FileReader();
-        reader.onload = async (ev)=>{
-          const base64 = ev.target.result;
-          const fileId = uid('file');
-          const payload = { 
-            id: uid('msg'), 
-            sender: myUser.name, 
-            senderObj: myUser, 
-            fileId, 
-            fileName: file.name, 
-            fileType: file.type, 
-            ts: Date.now(), 
-            base64 
-          };
-          
-          // store locally
-          await put('files', { id: fileId, blob: file });
-          const localMsg = { 
-            id: payload.id, 
-            sender: myUser.name, 
-            senderObj: myUser, 
-            fileId, 
-            fileName: file.name, 
-            ts: payload.ts, 
-            out: true 
-          };
-          await put('messages', localMsg);
-          addMessageDOM(localMsg);
-          socket.emit('file-message', payload);
-          
-          // Clear file input
-          fileInput.value = '';
-          isSending = false;
+        
+        reader.onload = async (e) => {
+          try {
+            const base64 = e.target.result;
+            const payload = {
+              id: uid('msg'),
+              sender: myUser.name,
+              senderObj: myUser,
+              fileId: fileId,
+              fileName: file.name,
+              fileType: file.type,
+              ts: Date.now(),
+              base64: base64
+            };
+            
+            // Store file locally
+            await put('files', { id: fileId, blob: file });
+            
+            // Create message record
+            const msgRecord = {
+              id: payload.id,
+              sender: myUser.name,
+              senderObj: myUser,
+              fileId: fileId,
+              fileName: file.name,
+              ts: payload.ts,
+              out: true
+            };
+            
+            await put('messages', msgRecord);
+            addMessageDOM(msgRecord);
+            socket.emit('file-message', payload);
+            
+            // Clear file input
+            fileInput.value = '';
+            
+            // If there's also text, send it as a separate message
+            if (text) {
+              await sendTextMessage(text);
+            }
+            
+          } catch (error) {
+            console.error('Error sending file:', error);
+            addSystem('Error sending file: ' + error.message);
+          } finally {
+            isProcessing = false;
+          }
         };
+        
+        reader.onerror = () => {
+          console.error('File reading error');
+          addSystem('Error reading file');
+          isProcessing = false;
+        };
+        
         reader.readAsDataURL(file);
+        
+      } else if (text) {
+        // Only text message
+        await sendTextMessage(text);
+        isProcessing = false;
       }
-
-      if(text){
-        const msg = { 
-          id: uid('msg'), 
-          sender: myUser.name, 
-          senderObj: myUser, 
-          text, 
-          ts: Date.now(), 
-          out: true 
-        };
-        await put('messages', msg);
-        addMessageDOM(msg);
-        socket.emit('chat-message', msg);
-        textInput.value = '';
-        isSending = false;
-      }
+      
     } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Error sending message: ' + error.message);
-      isSending = false;
+      console.error('Send error:', error);
+      addSystem('Error sending message: ' + error.message);
+      isProcessing = false;
     }
-  });
+  }
+  
+  async function sendTextMessage(text) {
+    const myUser = getMyUser();
+    const msg = {
+      id: uid('msg'),
+      sender: myUser.name,
+      senderObj: myUser,
+      text: text,
+      ts: Date.now(),
+      out: true
+    };
+    
+    await put('messages', msg);
+    addMessageDOM(msg);
+    socket.emit('chat-message', msg);
+    textInput.value = '';
+  }
 
-  // Allow sending with Enter key (but Shift+Enter for new line)
+  // Event listeners
+  sendBtn.addEventListener('click', sendMessage);
+  
   textInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendBtn.click();
+      sendMessage();
     }
   });
 
-  // clear local history
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) {
+      addSystem('File selected: ' + fileInput.files[0].name);
+    }
+  });
+
   clearBtn.addEventListener('click', async ()=>{
-    if(!confirm('Clear local messages and files?')) return;
+    if(!confirm('Clear all local messages and files?')) return;
     const d = await openDb();
-    const tx = d.transaction(['messages','files'],'readwrite'); 
-    tx.objectStore('messages').clear(); 
+    const tx = d.transaction(['messages','files'],'readwrite');
+    tx.objectStore('messages').clear();
     tx.objectStore('files').clear();
-    tx.oncomplete = ()=> { 
-      messagesEl.innerHTML=''; 
-      alert('Cleared'); 
+    tx.oncomplete = () => {
+      messagesEl.innerHTML = '';
+      addSystem('All messages cleared');
     };
   });
 
-  // set name input (inline)
   setNameBtn.addEventListener('click', ()=>{
-    const v = (nameInput.value || '').trim();
+    const v = nameInput.value.trim();
     if(!v) {
       alert('Please enter a name');
       return;
@@ -733,18 +809,17 @@ function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(
     setMyUser(u);
     updateAvatarUI();
     socket.emit('join', u);
-    alert('Name updated to: ' + v);
+    addSystem('Name updated to: ' + v);
   });
 
-  // helper system note
-  function addSystem(text){ 
-    const sys = { 
-      id: uid('sys'), 
-      sender:'System', 
-      text, 
-      ts: Date.now() 
-    }; 
-    put('messages', sys).then(()=> addMessageDOM(sys)); 
+  function addSystem(text) {
+    const sys = {
+      id: uid('sys'),
+      sender: 'System',
+      text: text,
+      ts: Date.now()
+    };
+    put('messages', sys).then(() => addMessageDOM(sys));
   }
 
 })();
