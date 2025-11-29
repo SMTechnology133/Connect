@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CONNECT a lightweight group chat application</title>
+
+<meta name="theme-color" content="teal"/>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
+<style>
+:root{--bg:#f6f8fb;--card:#fff;--accent:#2563eb;--muted:#666}
+  body{
+    margin:0;
+    font-family:georgia;
+    height:100vh;
+    background-color:#f6f8fb;
+    color:teal;
+    margin-top: 1px;
+    box-sizing: border-box;
+  }
+  html, body { height: 100%; }
+
+  .app{
+    max-width:1000px;
+    margin: 0 auto;
+    height: 100%;
+    border-radius:4px;
+    overflow:hidden;
+    display:grid;
+    grid-template-columns:1fr;
+    box-shadow:0 6px 24px rgba(16,24,40,0.08);
+    border:1px solid orange;
+  }
+
+  .left{
+    background: linear-gradient(to right, teal, maroon);
+    display:flex;
+    flex-direction:column;
+    height:100%;
+  }
+
+  header{
+    padding:12px 16px;
+    border-bottom:1px solid orange;
+    /*display:flex;*/
+    align-items:center;
+    gap:12px;
+    color: teal;
+    flex-shrink: 0;
+  }
+
+  header .logo{
+    font-weight:600;
+    color:orange;
+    font-size:25px;
+  }
+
+  .messages{
+    flex:1;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .composer{
+    border-top:1px solid orange;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-shrink: 0;
+  }
+
+  textarea{
+    flex:1;
+    height:64px;
+    border:1px solid teal;
+    resize:none;
+    margin:2px;
+  }
+
+  button{
+    background:orange;
+    color:teal;
+    border:1px solid gray;
+    padding:10px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+
+  .right { display:none; } /* moved to modal */
+
+  .user{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  .avatar{
+    width:34px;
+    height:40px;
+    border-radius:30px;
+    display:inline-grid;
+    place-items:center;
+    color:white;
+    font-weight:600;
+  }
+
+  .meta{
+  	 font-size:13px;
+  	  color:var(--muted);
+  	   }
+  	   
+  .msg{
+  	 max-width:70%;
+  	  padding:10px;
+  	   border-radius:10px;
+  	    background:#f1f7ff;
+  	     border:1px solid #e6f0ff;
+  	      display:flex;
+  	       gap:10px;
+  	        align-items:flex-start;
+  	         }
+  	         
+  .msg.out{
+  	 margin-left:auto;
+  	  background:#e6ffef;
+  	   border-color:#cfeedd;
+  	    }
+
+  .msg .senderAvatar{
+  	 width:36px;
+  	  height:36px;
+  	   border-radius:50%;
+  	    flex-shrink:0;
+  	     overflow:hidden;
+  	      display:inline-block;
+  	       }
+  	       
+  .msg .body{
+  	 flex:1;
+  	  }
+
+  .typing{
+  	 font-size:13px;
+  	  color:var(--muted);
+  	   padding:6px 10px;
+  	    }
+  	    
+  .status{
+  	 font-size:13px;
+  	  color:var(--muted);
+  	   margin-top:6px; }
+
+  .file-link{
+  	 display:inline-block;
+  	  margin-top:6px;
+  	   color:var(--accent);
+  	    text-decoration:underline;
+  	     cursor:pointer;
+  	      }
+  	      
+  .small{ font-size:13px; color:var(--muted); width: 100px; }
+
+  .users-list{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
+  .user-item{ display:flex; align-items:center; gap:8px; padding:6px; border-radius:8px; }
+
+  footer{ font-size:12px; color:var(--muted); padding:8px; }
+
+  .picturee{
+  	 width: 38px;
+  	  height: 38px;
+  	   border: 1px solid orange;
+  	    border-radius: 20px;
+  	     padding: 1px;
+  	      margin-top: 6px;
+  	       }
+
+  /* Sidebar modal */
+  #sidebarModal{
+  	 position:fixed;
+  	  top:0;
+  	   left:0;
+  	    right:0;
+  	     bottom:0;
+  	      display:none;
+  	   background:rgba(0,0,0,0.35);
+  	        z-index:999;
+  	         align-items:flex-end;
+  	          justify-content:center;
+  	           }
+  	           
+  #sidebarContent{
+  	background: linear-gradient(to right, maroon, teal);
+  	  width:100%;
+  	   max-width:420px;
+  	    max-height:80%;
+  	     overflow:auto;
+  	      border-radius:12px;
+  	      border:1px solid orange;
+  	       margin:20px;
+  	        padding:16px;
+  	        color:orange;
+  	         }
+  	         
+  #sidebarContent h3{
+  	 margin:0 0 8px 0;
+  	  }
+  	  
+  .closeModalBtn{
+  	 background:teal;
+  	  color:orange;
+  	   padding:8px 12px;
+  	    border-radius:6px;
+  	     float:right;
+  	      margin-bottom:10px;
+  	       border:none;
+  	        cursor:pointer;
+  	        border:1px solid orange;
+  	         }
+
+  /* profile modal */
+  #profileModal{
+  	 position:fixed;
+  	  inset:0;
+  	   display:none;
+  	    background:rgba(0,0,0,0.35);
+  	     z-index:1000;
+  	      align-items:center;
+  	       justify-content:center;
+  	        }
+  
+  #profileCard{
+  	background: linear-gradient(to right, maroon, teal);
+  	  padding:16px;
+  	   border-radius:10px;
+  	    width:320px;
+  	     box-shadow:0 8px 24px rgba(0,0,0,0.16);
+  	     border:1px solid orange;
+  	      }
+  
+  #profileCard input[type="file"]{
+  	 display:block;
+  	  margin-top:8px;
+  	  }
+  
+  .avatarPreview{
+  	 width:100px;
+  	  height:29px;
+  	   border-radius:100px; overflow:hidden;
+  	    display:inline-block;
+  	     background:#ddd;
+  	      margin-bottom:8px;
+  	      border:1px solid orange;
+  	      background: linear-gradient(to right, teal, maroon);
+  	       }
+
+  @media (max-width:720px){
+    textarea{
+    	 min-height:70px;
+    	  border:1px solid orange;
+    	   color: orange;
+    	    background: maroon;
+    	     border-radius:3px;
+    	     width:100%;
+    	      }
+    	      
+    button{
+    	 width:100%;
+    	  }
+    	  
+    .composer{
+    	 flex-direction:column;
+    	  padding-bottom:20px;
+    	   background:linear-gradient(to right, teal, maroon);
+    	    }
+    	    
+    .msg{
+    	 max-width:90%;
+    	  border-radius:14px !important;
+    	padding:10px 14px !important;
+    	    box-shadow:0 1px 2px rgba(0,0,0,0.12);
+    	     }
+    	     
+    .msg.out{
+    	 background:#d2f7ff !important;
+    	  border-color:#9ae5ff !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app" role="application">
+  <div class="left">
+    <header>
+      <img class="picturee" src="https://smtechnology133.github.io/africaonline/africaOnlineIcon.png"/>
+      <div class="logo">Connect</div>
+      &nbsp;&nbsp;
+      
+      <button onclick="openProfile()" class="small">Profile</button>
+      
+      <button onclick="openSidebar()" class="small">Status</button>
+      
+      <button onclick="liveStream();" class="small">Live Stream</button>
+      
+      <div style="flex:1"></div>
+      <div class="user" title="Your name">
+        <div id="myAvatar" class="picturee" style="background:#7c3aed">A</div>
+        
+        <input style="padding:6px;border-radius:6px;border:1px solid orange;width:145px" id="nameInput" placeholder="Your name" style="padding:6px;border-radius:6px;border:1px solid #ddd">
+        <button id="setNameBtn" class="small">Set</button>
+      </div>
+    </header>
+
+    <div id="messages" class="messages" aria-live="polite" style="min-height:0;"></div>
+
+    <div class="composer">
+      <input id="fileInput" type="file"><br>
+      <textarea id="textInput" placeholder="Write a message..."></textarea>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button id="sendBtn">Send</button>
+        <button id="clearBtn" class="small">Clear</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sidebar modal -->
+<div id="sidebarModal" onclick="if(event.target.id==='sidebarModal') closeSidebar()">
+  <div id="sidebarContent">
+    <button onclick="closeSidebar()" class="closeModalBtn">Close</button>
+    <h3>Connection</h3>
+    <div id="connStatus" class="status">Connecting...</div>
+    <hr>
+    <h3>People</h3>
+    <ul id="users" class="users-list"></ul>
+    <hr>
+    <h3>Typing</h3>
+    <div id="typing" class="typing">—</div>
+    <footer style="margin-top:12px;">Files stored in your browser (IndexedDB). Server only relays messages.</footer>
+  </div>
+</div>
+
+<!-- Profile modal -->
+<div id="profileModal" onclick="if(event.target.id==='profileModal') closeProfile()">
+  <div id="profileCard">
+    <h3>Profile</h3>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="avatarPreview" id="avatarPreview"></div>
+      <div>
+        <input id="profileName" placeholder="Your name" style="padding:6px;border-radius:6px;border:1px solid orange;width:265px">
+        <input style="padding:6px;border-radius:6px;border:1px solid orange;width:265px" id="profilePicInput" type="file" accept="image/*">
+      </div>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="saveProfile()">Save</button>
+      <button onclick="closeProfile()" style="background:maroon;color:teal;border:1px solid orange;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+liveStream=()=>{ open("https://videostream-ns46.onrender.com/"); }
+
+/* Modal functions */
+function openSidebar(){ document.getElementById('sidebarModal').style.display='flex'; }
+function closeSidebar(){ document.getElementById('sidebarModal').style.display='none'; }
+function openProfile(){
+  const p = getMyUser();
+  document.getElementById('profileName').value = p.name || '';
+  if(p.avatar) document.getElementById('avatarPreview').innerHTML = '<img src="'+p.avatar+'" style="width:100%;height:100%;object-fit:cover">';
+  else document.getElementById('avatarPreview').textContent = '';
+  document.getElementById('profileModal').style.display='flex';
+}
+function closeProfile(){ document.getElementById('profileModal').style.display='none'; }
+
+/* Helpers */
+function uid(prefix='id'){return prefix+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)}
+function initialsFrom(name){ if(!name) return '?'; return name.split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase(); }
+function colorFrom(name){ const colors=['#7c3aed','#0ea5e9','#ef4444','#16a34a','#f97316','#0ea5e9','#8b5cf6']; let h=0; for(let i=0;i<name.length;i++) h+=name.charCodeAt(i); return colors[h%colors.length]; }
+
+/* Local profile storage */
+function getMyUser(){
+  try{
+    const raw = localStorage.getItem('enhanced_chat_user');
+    if(!raw) return { name: 'User '+Math.floor(Math.random()*9000), avatar: null };
+    return JSON.parse(raw);
+  }catch(e){
+    return { name: 'User '+Math.floor(Math.random()*9000), avatar: null };
+  }
+}
+function setMyUser(u){
+  localStorage.setItem('enhanced_chat_user', JSON.stringify(u));
+}
+
+/* Avatar file picker in profile modal */
+document.getElementById('profilePicInput').addEventListener('change', async (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const dataUrl = ev.target.result;
+    document.getElementById('avatarPreview').innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
+    // temporarily store preview in dataset
+    document.getElementById('profileModal').dataset.avatarPreview = dataUrl;
+  };
+  reader.readAsDataURL(f);
+});
+
+/* Save profile button */
+function saveProfile(){
+  const name = (document.getElementById('profileName').value || '').trim();
+  const avatar = document.getElementById('profileModal').dataset.avatarPreview || null;
+  const u = getMyUser();
+  u.name = name || u.name;
+  u.avatar = avatar || u.avatar;
+  setMyUser(u);
+  updateAvatarUI();
+  // emit join with full object (socket exists below; use safe emit after socket ready)
+  if(window.socket && window.socket.connected) window.socket.emit('join', u);
+  closeProfile();
+}
+
+/* update header avatar & name field */
+function updateAvatarUI(){
+  const u = getMyUser();
+  const myAvatar = document.getElementById('myAvatar');
+  if(u.avatar){
+    myAvatar.innerHTML = '<img src="'+u.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    myAvatar.style.background = '';
+  } else {
+    myAvatar.textContent = initialsFrom(u.name || '');
+    myAvatar.style.background = colorFrom(u.name || '');
+  }
+  document.getElementById('nameInput').value = u.name || '';
+}
+updateAvatarUI();
+
+/* IndexedDB helpers */
+const DB_NAME='enhanced_chat_db', DB_VER=1;
+let db;
+function openDb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB_NAME,DB_VER); r.onupgradeneeded = e => { const d=e.target.result; if(!d.objectStoreNames.contains('messages')) d.createObjectStore('messages',{keyPath:'id'}); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files',{keyPath:'id'}); }; r.onsuccess = ()=>{ db=r.result; res(db); }; r.onerror = ()=> rej(r.error); }); }
+function put(store, obj){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction([store],'readwrite'); tx.objectStore(store).put(obj); tx.oncomplete=()=>res(obj); tx.onerror=()=>rej(tx.error); }); }
+function getAll(store){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction([store],'readonly'); const out=[]; const req = tx.objectStore(store).openCursor(); req.onsuccess = e => { const cur=e.target.result; if(!cur) return res(out); out.push(cur.value); cur.continue(); }; req.onerror = ()=> rej(req.error); }); }
+function getFile(id){ return new Promise(async(res,rej)=>{ const d=await openDb(); const tx=d.transaction(['files'],'readonly'); const req=tx.objectStore('files').get(id); req.onsuccess=()=>res(req.result?req.result.blob:null); req.onerror=()=>rej(req.error); }); }
+
+/* START: Socket + DOM logic (FIXED) */
+(async function(){
+  await openDb();
+
+  const socket = io();
+  window.socket = socket; // expose to other functions (profile save)
+  const messagesEl = document.getElementById('messages');
+  const usersEl = document.getElementById('users');
+  const typingEl = document.getElementById('typing');
+  const connStatus = document.getElementById('connStatus');
+  const nameInput = document.getElementById('nameInput');
+  const setNameBtn = document.getElementById('setNameBtn');
+  const myAvatar = document.getElementById('myAvatar');
+  const fileInput = document.getElementById('fileInput');
+  const textInput = document.getElementById('textInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  // state
+  let users = {}; // server-sent map id -> { name, avatar }
+  let typingUsers = new Set();
+  let isSending = false; // Prevent multiple sends
+
+  function addMessageDOM(m){
+    // Check if message already exists to prevent duplicates
+    const existingMsg = document.querySelector(`[data-msg-id="${m.id}"]`);
+    if (existingMsg) return;
+    
+    const div = document.createElement('div');
+    div.className = 'msg ' + (m.out?'out':'in');
+    div.setAttribute('data-msg-id', m.id);
+
+    // avatar (sender)
+    const avWrap = document.createElement('div');
+    avWrap.className = 'senderAvatar';
+    if(m.senderObj && m.senderObj.avatar){
+      avWrap.innerHTML = '<img src="'+m.senderObj.avatar+'" style="width:100%;height:100%;object-fit:cover">';
+    } else {
+      const initials = initialsFrom(m.sender || (m.senderObj && m.senderObj.name) || 'A');
+      const bg = colorFrom(m.sender || (m.senderObj && m.senderObj.name) || '');
+      avWrap.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:'+bg+';color:#fff;font-weight:600">'+initials+'</div>';
+    }
+
+    const body = document.createElement('div');
+    body.className = 'body';
+
+    const meta = document.createElement('div'); meta.className='meta small';
+    const senderName = (m.senderObj && m.senderObj.name) || m.sender || 'Anonymous';
+    meta.textContent = senderName + ' · ' + new Date(m.ts||Date.now()).toLocaleString();
+
+    const content = document.createElement('div'); content.style.marginTop='6px';
+    if(m.text) content.appendChild(document.createTextNode(m.text));
+    if(m.fileId){
+      const a = document.createElement('a'); a.className='file-link'; a.textContent = ' ' + (m.fileName||'file'); a.href='#';
+      a.onclick = async (e)=>{ e.preventDefault(); const blob = await getFile(m.fileId); if(!blob){ alert('File not in your browser storage.'); return; } const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href=url; link.download = m.fileName || 'file'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),10000); };
+      content.appendChild(document.createElement('br'));
+      content.appendChild(a);
+      const rb = document.createElement('span'); rb.className='read-badge'; rb.textContent = m.readBy ? ('Read by: '+m.readBy.join(', ')) : '';
+      content.appendChild(rb);
+    }
+
+    body.appendChild(meta);
+    body.appendChild(content);
+
+    div.appendChild(avWrap);
+    div.appendChild(body);
+
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // load history
+  const hist = await getAll('messages');
+  hist.forEach(m=> addMessageDOM(m));
+
+  // connection status
+  socket.on('connect', ()=>{
+    connStatus.textContent = 'Connected';
+    // when connecting, tell server about our profile
+    const u = getMyUser();
+    socket.emit('join', u);
+  });
+  socket.on('disconnect', ()=> connStatus.textContent = 'Disconnected');
+  socket.on('connect_error', ()=> connStatus.textContent = 'Connection error');
+
+  // users-list (full map)
+  socket.on('users-list', (serverUsers) => {
+    users = serverUsers || {};
+    renderUsers();
+  });
+
+  socket.on('user-joined', ({id, user})=>{
+    users[id] = user;
+    renderUsers();
+    addSystem(`${(user && user.name) || 'Someone'} joined`);
+  });
+
+  socket.on('user-left', ({id, user})=>{
+    delete users[id];
+    renderUsers();
+    addSystem(`${(user && user.name) || 'Someone'} left`);
+  });
+
+  function renderUsers(){
+    usersEl.innerHTML = '';
+    for(const id in users){
+      const li = document.createElement('li');
+      li.className = 'user-item';
+      const av = document.createElement('div'); av.className='avatar';
+      if(users[id] && users[id].avatar){
+        av.innerHTML = '<img src="'+users[id].avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+        av.style.border = '1px solid white';
+      } else {
+        av.textContent = initialsFrom(users[id] ? users[id].name : '?');
+        av.style.background = colorFrom(users[id] ? users[id].name : '');
+      }
+      const nm = document.createElement('div'); nm.textContent = users[id] ? users[id].name : 'Anonymous';
+      li.appendChild(av); li.appendChild(nm);
+      usersEl.appendChild(li);
+    }
+  }
+
+  // typing indicator
+  let typingTimer = null;
+  textInput.addEventListener('input', ()=> {
+    socket.emit('typing', { });
+    if(typingTimer) clearTimeout(typingTimer);
+    typingTimer = setTimeout(()=> socket.emit('stop-typing', {}), 1200);
+  });
+  socket.on('typing', ({user, userObj})=>{ if(user) typingUsers.add(user); updateTyping(); });
+  socket.on('stop-typing', ({user, userObj})=>{ if(user) typingUsers.delete(user); updateTyping(); });
+  function updateTyping(){ typingEl.textContent = typingUsers.size ? Array.from(typingUsers).join(', ')+' is typing...' : '—'; }
+
+  // read receipts
+  function markRead(messageId){
+    socket.emit('message-read', { messageId, reader: getMyUser().name });
+  }
+  socket.on('message-read', ({messageId, reader})=>{
+    addSystem(`${reader} read a message`);
+  });
+
+  // incoming chat messages
+  socket.on('chat-message', async (msg)=>{
+    // Only add if not our own message (our own messages are added optimistically)
+    const myUser = getMyUser();
+    if (msg.sender === myUser.name) return;
+    
+    await put('messages', msg);
+    addMessageDOM(msg);
+    markRead(msg.id);
+  });
+
+  socket.on('file-message', async (payload)=>{
+    try{
+      // Only add if not our own file message
+      const myUser = getMyUser();
+      if (payload.sender === myUser.name) return;
+      
+      let blob = null;
+      if(payload.arrayBuffer){
+        blob = new Blob([payload.arrayBuffer], { type: payload.fileType || 'application/octet-stream' });
+      } else if(payload.base64){
+        const b64 = payload.base64.split(',')[1];
+        const binary = atob(b64);
+        const len = binary.length;
+        const u8 = new Uint8Array(len);
+        for(let i=0;i<len;i++) u8[i] = binary.charCodeAt(i);
+        blob = new Blob([u8], { type: payload.fileType || 'application/octet-stream' });
+      }
+      if(blob){
+        await put('files', { id: payload.fileId, blob });
+      }
+      const msg = { id: payload.id, sender: payload.sender, senderObj: payload.senderObj, fileId: payload.fileId, fileName: payload.fileName, ts: payload.ts };
+      await put('messages', msg);
+      addMessageDOM(msg);
+      markRead(msg.id);
+    }catch(e){ console.error('file receive error', e); }
+  });
+
+  // FIXED: sending messages
+  sendBtn.addEventListener('click', async ()=>{
+    if (isSending) return; // Prevent multiple sends
+    
+    const text = textInput.value.trim();
+    const file = fileInput.files[0];
+    const myUser = getMyUser();
+
+    if(!text && !file) {
+      alert('Please enter a message or select a file');
+      return;
+    }
+
+    isSending = true;
+    try {
+      if(file){
+        const reader = new FileReader();
+        reader.onload = async (ev)=>{
+          const base64 = ev.target.result;
+          const fileId = uid('file');
+          const payload = { 
+            id: uid('msg'), 
+            sender: myUser.name, 
+            senderObj: myUser, 
+            fileId, 
+            fileName: file.name, 
+            fileType: file.type, 
+            ts: Date.now(), 
+            base64 
+          };
+          
+          // store locally
+          await put('files', { id: fileId, blob: file });
+          const localMsg = { 
+            id: payload.id, 
+            sender: myUser.name, 
+            senderObj: myUser, 
+            fileId, 
+            fileName: file.name, 
+            ts: payload.ts, 
+            out: true 
+          };
+          await put('messages', localMsg);
+          addMessageDOM(localMsg);
+          socket.emit('file-message', payload);
+          
+          // Clear file input
+          fileInput.value = '';
+          isSending = false;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      if(text){
+        const msg = { 
+          id: uid('msg'), 
+          sender: myUser.name, 
+          senderObj: myUser, 
+          text, 
+          ts: Date.now(), 
+          out: true 
+        };
+        await put('messages', msg);
+        addMessageDOM(msg);
+        socket.emit('chat-message', msg);
+        textInput.value = '';
+        isSending = false;
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Error sending message: ' + error.message);
+      isSending = false;
+    }
+  });
+
+  // Allow sending with Enter key (but Shift+Enter for new line)
+  textInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+
+  // clear local history
+  clearBtn.addEventListener('click', async ()=>{
+    if(!confirm('Clear local messages and files?')) return;
+    const d = await openDb();
+    const tx = d.transaction(['messages','files'],'readwrite'); 
+    tx.objectStore('messages').clear(); 
+    tx.objectStore('files').clear();
+    tx.oncomplete = ()=> { 
+      messagesEl.innerHTML=''; 
+      alert('Cleared'); 
+    };
+  });
+
+  // set name input (inline)
+  setNameBtn.addEventListener('click', ()=>{
+    const v = (nameInput.value || '').trim();
+    if(!v) {
+      alert('Please enter a name');
+      return;
+    }
+    const u = getMyUser();
+    u.name = v;
+    setMyUser(u);
+    updateAvatarUI();
+    socket.emit('join', u);
+    alert('Name updated to: ' + v);
+  });
+
+  // helper system note
+  function addSystem(text){ 
+    const sys = { 
+      id: uid('sys'), 
+      sender:'System', 
+      text, 
+      ts: Date.now() 
+    }; 
+    put('messages', sys).then(()=> addMessageDOM(sys)); 
+  }
+
+})();
+</script>
+
+<script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+</body>
+</html>
