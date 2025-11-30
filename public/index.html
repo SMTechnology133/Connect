@@ -1,12 +1,12 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>CONNECT A lightweight group chat application</title>
-<meta name="theme-color" content="teal"/> 
+<!doctype html>  
+<html lang="en">  
+<head>  
+<meta charset="utf-8" />  
+<meta name="viewport" content="width=device-width,initial-scale=1" />  
+<title>CONNECT A lightweight group chat application</title>  
+<meta name="theme-color" content="teal"/>   
 
-<style>
+<style>  
 /* --- YOUR ORIGINAL CSS — UNCHANGED --- */
 :root{--bg:#f6f8fb;--card:#fff;--accent:#2563eb;--muted:#666}
 html,body{height:100%;margin:0;font-family:georgia;background:var(--bg);color:teal;margin-top:1px;}
@@ -39,7 +39,7 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 	background:gray;
 	border:1px solid orange;
 	color: orange;
-	} 
+	}
 	
 .msg.out{
 	margin-left:auto;
@@ -58,8 +58,8 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 @media(max-width:720px){.app{grid-template-columns:1fr;height:100vh;border-radius:0}.right{display:none}}
 .file-link{display:inline-block;margin-top:6px;color:var(--accent);text-decoration:underline;cursor:pointer}
 .picturee{width:30px;height:30px;border:1px solid orange;border-radius:20px;padding:1px;margin-top:6px;}
-</style>
-</head>
+</style>  
+</head>  
 
 <body>
 <div class="app" role="application">
@@ -87,17 +87,17 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
         </header>
 
         <div id="messages" class="messages"></div>
-        
 
         <div class="composer">
-
             <textarea id="textInput" placeholder="Write a message..."></textarea>
             <div style="display:flex;flex-direction:column;gap:6px">
                 <button id="sendBtn">Send</button>
                 <button id="clearBtn" class="small">Clear</button>
-            </div>   
+            </div>    
         </div>
-        <input id="fileInput" type="file"           style="color:orange;font-size:10px;background:gray;border-radius:4px;border:1px solid orange; padding:4px; margin:8px; text-align:center;"><br>
+
+        <input id="fileInput" type="file"
+               style="color:orange;font-size:10px;background:gray;border-radius:4px;border:1px solid orange; padding:4px; margin:8px; text-align:center;"><br>
     </div>
 
     <!-- RIGHT PANEL -->
@@ -116,7 +116,7 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
     </aside>
 </div>
 
-<!-- MOBILE ASIDE MODAL -->
+<!-- MOBILE ASIDE -->
 <div id="asideModalOverlay">
     <div id="asideModal">
         <button id="closeAsideBtn">Close</button>
@@ -134,417 +134,389 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 </div>
 
 <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+
 <script>
-/* =========================================================
-   NEW FULL JAVASCRIPT
-   Profile picture syncing, better metadata, fixes all logic
-   ========================================================= */
-(async function() {
+/* FIXED FULL JS */
 
-    /* ---------------- Helpers ---------------- */
-    const uid = (p='id') => p+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+(async function(){
 
-    const initialsFrom = name => {
-        if(!name) return "";
-        return name.split(" ").map(s => s[0]).join("").slice(0,2).toUpperCase();
+/* Helpers */
+const uid = (p='id') => p+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
+
+const initialsFrom = name =>
+    name ? name.split(" ").map(s=>s[0]).join("").slice(0,2).toUpperCase() : "";
+
+const colorFrom = name=>{
+    if(!name) return "#7c3aed";
+    const colors=['#7c3aed','#0ea5e9','#ef4444','#16a34a','#f97316','#8b5cf6'];
+    let h=0; for(let c of name) h+=c.charCodeAt(0);
+    return colors[h%colors.length];
+};
+
+/* DOM refs */
+const messagesEl = document.getElementById('messages');
+const usersEl = document.getElementById('users');
+const typingEl = document.getElementById('typing');
+const connStatus = document.getElementById('connStatus');
+
+const m_connStatus = document.getElementById('m_connStatus');
+const m_users = document.getElementById('m_users');
+const m_typing = document.getElementById('m_typing');
+
+const nameInput = document.getElementById('nameInput');
+const setNameBtn = document.getElementById('setNameBtn');
+const fileInput = document.getElementById('fileInput');
+const textInput = document.getElementById('textInput');
+const sendBtn = document.getElementById('sendBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+const openAsideBtn = document.getElementById('openAsideBtn');
+const asideOverlay = document.getElementById('asideModalOverlay');
+const closeAsideBtn = document.getElementById('closeAsideBtn');
+const liveBtn = document.getElementById('liveBtn');
+
+const myAvatarEl = document.getElementById('myAvatar');
+const avatarInput = document.getElementById('avatarInput');
+const changePicBtn = document.getElementById('changePicBtn');
+
+openAsideBtn.onclick = ()=> asideOverlay.style.display = "flex";
+closeAsideBtn.onclick = ()=> asideOverlay.style.display = "none";
+liveBtn.onclick = ()=> window.open("https://videostream-ns46.onrender.com/","_blank");
+
+/* Avatar set */
+function setAvatar(dataURL){
+    if(dataURL){
+        myAvatarEl.innerHTML = `<img src="${dataURL}">`;
+    } else {
+        myAvatarEl.textContent = initialsFrom(name);
+        myAvatarEl.style.background = colorFrom(name);
+    }
+}
+
+changePicBtn.onclick = () => avatarInput.click();
+
+avatarInput.onchange = e =>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+        localStorage.setItem("profile_pic_data", reader.result);
+        setAvatar(reader.result);
+        socket.emit("update-profile",{name, avatar:reader.result});
     };
+    reader.readAsDataURL(f);
+};
 
-    const colorFrom = name => {
-        if(!name) return "#7c3aed";
-        const colors=['#7c3aed','#0ea5e9','#ef4444','#16a34a','#f97316','#8b5cf6'];
-        let h=0; for(let i=0;i<name.length;i++) h+=name.charCodeAt(i);
-        return colors[h%colors.length];
-    };
+/* Load profile */
+let name = localStorage.getItem("enhanced_chat_name") || ("User"+Math.floor(Math.random()*9999));
+let storedAvatar = localStorage.getItem("profile_pic_data") || null;
 
-    /* -------------- DOM refs ---------------- */
-    const messagesEl = document.getElementById('messages');
-    const usersEl = document.getElementById('users');
-    const typingEl = document.getElementById('typing');
-    const connStatus = document.getElementById('connStatus');
+nameInput.value = name;
+setAvatar(storedAvatar);
 
-    const m_connStatus = document.getElementById('m_connStatus');
-    const m_users = document.getElementById('m_users');
-    const m_typing = document.getElementById('m_typing');
+/* FIXED: Set Name button */
+setNameBtn.onclick = () =>{
+    name = nameInput.value.trim() || name;
+    localStorage.setItem("enhanced_chat_name", name);
 
-    const nameInput = document.getElementById('nameInput');
-    const setNameBtn = document.getElementById('setNameBtn');
-    const fileInput = document.getElementById('fileInput');
-    const textInput = document.getElementById('textInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const clearBtn = document.getElementById('clearBtn');
-
-    const openAsideBtn = document.getElementById('openAsideBtn');
-    const asideOverlay = document.getElementById('asideModalOverlay');
-    const closeAsideBtn = document.getElementById('closeAsideBtn');
-    const liveBtn = document.getElementById('liveBtn');
-
-    const myAvatarEl = document.getElementById('myAvatar');
-    const avatarInput = document.getElementById('avatarInput');
-    const changePicBtn = document.getElementById('changePicBtn');
-
-    /* ----------- UI handlers ----------- */
-    openAsideBtn.onclick = () => asideOverlay.style.display = 'flex';
-    closeAsideBtn.onclick = () => asideOverlay.style.display = 'none';
-    liveBtn.onclick = () => window.open('https://videostream-ns46.onrender.com/', '_blank');
-
-    /* ----------- Avatar setup ---------- */
-    function setAvatar(dataURL){
-        if(dataURL){
-            myAvatarEl.innerHTML = `<img src="${dataURL}">`;
-        } else {
-            myAvatarEl.textContent = initialsFrom(name);
-            myAvatarEl.style.background = colorFrom(name);
-        }
+    if(!storedAvatar){
+        setAvatar(null);
     }
 
-    changePicBtn.onclick = () => avatarInput.click();
+    socket.emit("update-profile",{name, avatar: storedAvatar});
+};
 
-    avatarInput.onchange = e => {
-        const f = e.target.files[0];
-        if(!f) return;
+/* IndexedDB */
+const DB_NAME="enhanced_chat_db", DB_VER=1;
 
-        const reader = new FileReader();
-        reader.onload = () => {
-            localStorage.setItem("profile_pic_data", reader.result);
-            setAvatar(reader.result);
-            socket.emit("update-profile", { name, avatar: reader.result });
+function openDb(){
+    return new Promise((res,rej)=>{
+        const r=indexedDB.open(DB_NAME,DB_VER);
+        r.onupgradeneeded=e=>{
+            let db=e.target.result;
+            if(!db.objectStoreNames.contains("messages"))
+                db.createObjectStore("messages",{keyPath:"id"});
+            if(!db.objectStoreNames.contains("files"))
+                db.createObjectStore("files",{keyPath:"id"});
         };
-        reader.readAsDataURL(f);
+        r.onsuccess=()=>res(r.result);
+        r.onerror=()=>rej(r.error);
+    });
+}
+
+async function put(store,obj){
+    const db=await openDb();
+    return new Promise((res,rej)=>{
+        const tx=db.transaction([store],'readwrite');
+        tx.objectStore(store).put(obj);
+        tx.oncomplete=()=>res(obj);
+        tx.onerror=()=>rej(tx.error);
+    });
+}
+
+async function getAll(store){
+    const db = await openDb();
+    return new Promise((res,rej)=>{
+        const tx=db.transaction([store],'readonly');
+        const out=[];
+        tx.objectStore(store).openCursor().onsuccess=e=>{
+            const cur=e.target.result;
+            if(!cur) return res(out);
+            out.push(cur.value);
+            cur.continue();
+        };
+    });
+}
+
+async function getFile(id){
+    const db = await openDb();
+    return new Promise((res)=>{
+        db.transaction(["files"],"readonly").objectStore("files")
+            .get(id).onsuccess=e=> res(e.target.result?e.target.result.blob:null);
+    });
+}
+
+/* load history */
+const history = await getAll("messages");
+history.sort((a,b)=>a.ts-b.ts);
+history.forEach(m=> addMessageDOM(m));
+
+/* socket io */
+const socket = io();
+
+socket.on("connect",()=>{
+    connStatus.textContent="Connected";
+    m_connStatus.textContent="Connected";
+    socket.emit("join",{name,avatar:storedAvatar});
+});
+
+socket.on("disconnect",()=>{
+    connStatus.textContent="Disconnected";
+    m_connStatus.textContent="Disconnected";
+});
+
+/* Users */
+let users = {};
+
+function renderUsers(){
+    usersEl.innerHTML="";
+    m_users.innerHTML="";
+
+    for(const id in users){
+        const u = users[id];
+
+        const li=document.createElement("li");
+        li.className="user-item";
+
+        const av=document.createElement("div");
+        av.className="avatar";
+        if(u.avatar){
+            av.innerHTML=`<img src="${u.avatar}">`;
+        } else {
+            av.textContent=initialsFrom(u.name);
+            av.style.background=colorFrom(u.name);
+        }
+
+        const nm=document.createElement("div");
+        nm.textContent = u.name;
+
+        li.append(av,nm);
+
+        usersEl.append(li);
+        m_users.append(li.cloneNode(true));
+    }
+}
+
+socket.on("users-list", data=>{
+    users = data;
+    renderUsers();
+});
+
+socket.on("user-joined", data=>{
+    users[data.id] = data.user;
+    renderUsers();
+    addSystem(`${data.user.name} joined`);
+});
+
+socket.on("user-left", data=>{
+    delete users[data.id];
+    renderUsers();
+    addSystem(`${data.user.name} left`);
+});
+
+socket.on("profile-updated",({id,user})=>{
+    users[id]=user;
+    renderUsers();
+});
+
+/* typing */
+let typingTimer=null;
+textInput.oninput=()=>{
+    socket.emit("typing");
+    clearTimeout(typingTimer);
+    typingTimer=setTimeout(()=>socket.emit("stop-typing"),1200);
+};
+
+socket.on("typing",({user})=>{
+    typingEl.textContent=`${user.name} is typing...`;
+    m_typing.textContent=typingEl.textContent;
+});
+socket.on("stop-typing",()=>{
+    typingEl.textContent="—";
+    m_typing.textContent="—";
+});
+
+/* Receive text */
+socket.on("chat-message", async msg=>{
+    await put("messages", msg);
+    addMessageDOM(msg);
+});
+
+/* Receive file + PREVIEW */
+socket.on("file-message", async payload=>{
+    const blob = new Blob([payload.arrayBuffer], {type:payload.fileType});
+    await put("files",{id:payload.fileId,blob});
+
+    const msg={
+        id:payload.id,
+        sender:payload.sender,
+        avatar:payload.avatar,
+        fileId:payload.fileId,
+        fileName:payload.fileName,
+        fileType:payload.fileType,
+        ts:payload.ts
     };
 
-    /* ---------- Load profile ---------- */
-    let name = localStorage.getItem("enhanced_chat_name") || ("User"+Math.floor(Math.random()*9000));
-    
-    const storedAvatar = localStorage.getItem("profile_pic_data");
+    await put("messages", msg);
+    addMessageDOM(msg);
+});
 
-    nameInput.value = name;
-    setAvatar(storedAvatar);
+/* PREVIEW HANDLER */
+function createPreview(fileType, blobURL){
+    if(fileType.startsWith("image/")){
+        return `<img src="${blobURL}" style="max-width:200px;border-radius:6px;margin-top:6px;">`;
+    }
+    if(fileType.startsWith("video/")){
+        return `<video src="${blobURL}" controls style="max-width:200px;margin-top:6px;"></video>`;
+    }
+    if(fileType.startsWith("audio/")){
+        return `<audio controls src="${blobURL}" style="margin-top:6px;"></audio>`;
+    }
+    if(fileType === "application/pdf"){
+        return `<iframe src="${blobURL}" style="width:200px;height:200px;border:1px solid orange;margin-top:6px;"></iframe>`;
+    }
+    return `<span class="file-link"> ${fileType}</span>`;
+}
 
-    /* ---------- Set name button ---------- */
-    setNameBtn.onclick = () => {
-        name = nameInput.value.trim() || name;
-        localStorage.setItem("enhanced_chat_name", name);
-        if(!storedAvatar) setAvatar(null);
-        socket.emit("update-profile", { name, avatar: storedAvatar || null });
-    };
+/* DOM messages */
+async function addMessageDOM(m){
+    const box=document.createElement("div");
+    box.className="msg "+(m.out ? "out":"in");
 
-    /* =====================================================
-       IndexedDB (LOCAL history only — unchanged logic)
-       ===================================================== */
-    const DB_NAME='enhanced_chat_db', DB_VER=1;
-
-    function openDb(){
-        return new Promise((res,rej)=>{
-            const r=indexedDB.open(DB_NAME,DB_VER);
-            r.onupgradeneeded=e=>{
-                const db=e.target.result;
-                if(!db.objectStoreNames.contains('messages'))
-                    db.createObjectStore('messages',{keyPath:'id'});
-                if(!db.objectStoreNames.contains('files'))
-                    db.createObjectStore('files',{keyPath:'id'});
-            };
-            r.onsuccess=()=>res(r.result);
-            r.onerror=()=>rej(r.error);
-        });
+    const av=document.createElement("div");
+    av.className="avatar";
+    if(m.avatar){
+        av.innerHTML=`<img src="${m.avatar}">`;
+    } else {
+        av.textContent=initialsFrom(m.sender);
+        av.style.background=colorFrom(m.sender);
     }
 
-    async function put(store,obj){
-        const db=await openDb();
-        return new Promise((res,rej)=>{
-            const tx=db.transaction([store],'readwrite');
-            tx.objectStore(store).put(obj);
-            tx.oncomplete=()=>res(obj);
-            tx.onerror=()=>rej(tx.error);
-        });
+    box.append(av);
+
+    const meta=document.createElement("div");
+    meta.className="meta small";
+    meta.textContent = `${m.sender} · ${new Date(m.ts).toLocaleTimeString()}`;
+
+    const body=document.createElement("div");
+    body.style.marginTop="6px";
+
+    if(m.text){
+        body.textContent = m.text;
     }
 
-    async function getAll(store){
-        const db=await openDb();
-        return new Promise((res,rej)=>{
-            const tx=db.transaction([store],'readonly');
-            const out=[];
-            const req=tx.objectStore(store).openCursor();
-            req.onsuccess=e=>{
-                const cur=e.target.result;
-                if(!cur) return res(out);
-                out.push(cur.value);
-                cur.continue();
-            };
-            req.onerror=()=>rej(req.error);
-        });
-    }
-
-    async function getFile(id){
-        const db=await openDb();
-        return new Promise((res,rej)=>{
-            const tx=db.transaction(['files'],'readonly');
-            const req=tx.objectStore('files').get(id);
-            req.onsuccess=()=>res(req.result?req.result.blob:null);
-            req.onerror=()=>rej(req.error);
-        });
-    }
-
-    /* ---------- Load message history ---------- */
-    const history = await getAll("messages");
-    history.sort((a,b)=>a.ts-b.ts);
-    history.forEach(m=>addMessageDOM(m));
-
-    /* =====================================================
-       SOCKET.IO — **NEW LOGIC WITH AVATAR SUPPORT**
-       ===================================================== */
-    const socket = io();
-
-    socket.on("connect",()=>{
-        connStatus.textContent = "Connected";
-        m_connStatus.textContent = "Connected";
-        socket.emit("join", { name, avatar: storedAvatar || null });
-    });
-
-    socket.on("disconnect",()=>{
-        connStatus.textContent = "Disconnected";
-        m_connStatus.textContent = "Disconnected";
-    });
-
-    socket.on("connect_error",()=>{
-        connStatus.textContent = "Connection error";
-        m_connStatus.textContent = "Connection error";
-    });
-
-    /* -------- USERS ---------- */
-    let users = {};  // socketId  {name, avatar}
-
-    function renderUsers(){
-        usersEl.innerHTML = "";
-        m_users.innerHTML = "";
-
-        for(const id in users){
-            const u = users[id];
-
-            const li = document.createElement("li");
-            li.className = "user-item";
-
-            const av = document.createElement("div");
-            av.className = "avatar";
-
-            if(u.avatar){
-                av.innerHTML = `<img src="${u.avatar}">`;
-            } else {
-                av.textContent = initialsFrom(u.name);
-                av.style.background = colorFrom(u.name);
-            }
-
-            const nm = document.createElement("div");
-            nm.textContent = u.name;
-
-            li.append(av,nm);
-            usersEl.append(li);
-            m_users.append(li.cloneNode(true));
+    if(m.fileId){
+        const blob = await getFile(m.fileId);
+        if(blob){
+            const url = URL.createObjectURL(blob);
+            body.innerHTML = createPreview(m.fileType, url);
         }
     }
 
-    socket.on("users-list", data => {
-        users = data;
-        renderUsers();
+    box.append(meta,body);
+    messagesEl.append(box);
+
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addSystem(t){
+    addMessageDOM({
+        id:uid("sys"),
+        sender:"System",
+        text:t,
+        ts:Date.now()
     });
+}
 
-    socket.on("user-joined", data => {
-        users[data.id] = data.user;
-        renderUsers();
-        addSystem(`${data.user.name} joined`);
-    });
+/* send */
+sendBtn.onclick = async () =>{
+    const text=textInput.value.trim();
+    const file=fileInput.files[0];
 
-    socket.on("user-left", data => {
-        delete users[data.id];
-        renderUsers();
-        addSystem(`${data.user.name} left`);
-    });
+    if(!text && !file) return;
 
-    socket.on("profile-updated", ({id,user})=>{
-        users[id] = user;
-        renderUsers();
-    });
+    /* file */
+    if(file){
+        const arrayBuffer = await file.arrayBuffer();
+        const fileId = uid("file");
+        const msgId = uid("msg");
 
-    /* ---------- Typing ---------- */
-    let typingTimer = null;
-
-    textInput.oninput = () => {
-        socket.emit("typing");
-        clearTimeout(typingTimer);
-        typingTimer = setTimeout(()=>socket.emit("stop-typing"), 1200);
-    };
-
-    socket.on("typing", ({user})=>{
-        typingEl.textContent = `${user.name} is typing...`;
-        m_typing.textContent = typingEl.textContent;
-    });
-
-    socket.on("stop-typing", ()=>{
-        typingEl.textContent = "—";
-        m_typing.textContent = "—";
-    });
-
-    /* ---------- Receive chat message ---------- */
-    socket.on("chat-message", async msg=>{
-        await put("messages", msg);
-        addMessageDOM(msg);
-        socket.emit("message-read", { id: msg.id, reader: name });
-    });
-
-    /* ---------- Receive file message ---------- */
-    socket.on("file-message", async payload=>{
-        const blob = new Blob([payload.arrayBuffer], {type:payload.fileType});
-        await put("files", {id:payload.fileId, blob});
-
-        const msg = {
-            id: payload.id,
-            sender: payload.sender,
-            avatar: payload.avatar,
-            fileId: payload.fileId,
-            fileName: payload.fileName,
-            ts: payload.ts
+        const payload={
+            id:msgId,
+            sender:name,
+            avatar:storedAvatar,
+            fileId,
+            fileName:file.name,
+            fileType:file.type,
+            ts:Date.now(),
+            arrayBuffer
         };
 
-        await put("messages", msg);
-        addMessageDOM(msg);
-    });
+        await put("files",{id:fileId, blob:file});
+        await put("messages",{...payload,out:true});
+        addMessageDOM({...payload,out:true});
 
-    /* =====================================================
-       DISPLAY MESSAGE DOM
-       ===================================================== */
-    function addMessageDOM(m){
-        const box = document.createElement("div");
-        box.className = "msg " + (m.out ? "out" : "in");
-
-        /* meta: avatar + name + time */
-        const meta = document.createElement("div");
-        meta.className = "meta small";
-
-        const time = new Date(m.ts).toLocaleTimeString();
-
-        meta.textContent = `${m.sender} · ${time}`;
-
-        /* attach avatar bubble */
-        const av = document.createElement("div");
-        av.className = "avatar";
-        if(m.avatar){
-            av.innerHTML = `<img src="${m.avatar}">`;
-        } else {
-            av.textContent = initialsFrom(m.sender);
-            av.style.background = colorFrom(m.sender);
-        }
-        box.prepend(av);
-
-        /* message body */
-        const body = document.createElement("div");
-        body.style.marginTop = "6px";
-
-        if(m.text){
-            body.textContent = m.text;
-        }
-
-        if(m.fileId){
-            const a = document.createElement("a");
-            a.className="file-link";
-            a.textContent = " " + m.fileName;
-            a.href="#";
-            a.onclick = async e=>{
-                e.preventDefault();
-                const blob = await getFile(m.fileId);
-                if(!blob){ alert("File missing."); return; }
-                const url = URL.createObjectURL(blob);
-                const link=document.createElement("a");
-                link.href=url;
-                link.download=m.fileName;
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                setTimeout(()=>URL.revokeObjectURL(url),8000);
-            };
-            body.append(a);
-        }
-
-        box.append(meta, body);
-        messagesEl.append(box);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        socket.emit("file-message",payload);
     }
 
-    /* ---------- System message ---------- */
-    function addSystem(text){
-        const msg = {
-            id: uid('sys'),
-            sender: "System",
+    /* text */
+    if(text){
+        const msg={
+            id:uid("msg"),
+            sender:name,
+            avatar:storedAvatar,
             text,
-            ts: Date.now()
+            ts:Date.now(),
+            out:true
         };
+        await put("messages",msg);
         addMessageDOM(msg);
+        socket.emit("chat-message",msg);
+        textInput.value="";
     }
 
-    /* ---------- Send ---------- */
-    sendBtn.onclick = async () => {
-        const text = textInput.value.trim();
-        const file = fileInput.files[0];
+    fileInput.value="";
+};
 
-        if(!text && !file) return;
-
-        /* --- file send --- */
-        if(file){
-            const arrayBuffer = await file.arrayBuffer();
-            const fileId = uid("file");
-            const msgId = uid("msg");
-
-            const payload = {
-                id: msgId,
-                sender: name,
-                avatar: storedAvatar || null,
-                fileId,
-                fileName: file.name,
-                fileType: file.type,
-                ts: Date.now(),
-                arrayBuffer
-            };
-
-            await put("files", {id:fileId, blob:file});
-            await put("messages", {...payload, out:true});
-
-            addMessageDOM({...payload, out:true});
-            socket.emit("file-message", payload);
-        }
-
-        /* --- text send --- */
-        if(text){
-            const msg = {
-                id: uid("msg"),
-                sender: name,
-                avatar: storedAvatar || null,
-                text,
-                ts: Date.now(),
-                out:true
-            };
-
-            await put("messages", msg);
-            addMessageDOM(msg);
-            socket.emit("chat-message", msg);
-
-            textInput.value = "";
-        }
-
-        fileInput.value = "";
-    };
-
-    /* ---------- Clear local ---------- */
-    clearBtn.onclick = async () => {
-        if(!confirm("Clear local messages?")) return;
-        const db = await openDb();
-        const tx = db.transaction(["messages","files"], "readwrite");
-        tx.objectStore("messages").clear();
-        tx.objectStore("files").clear();
-        tx.oncomplete = () => { messagesEl.innerHTML = ""; };
-    };
-
-    /* ---------- Read receipts ---------- */
-    socket.on("message-read", ({id,reader})=>{
-        addSystem(`${reader} read a message`);
-    });
+/* Clear */
+clearBtn.onclick = async () =>{
+    if(!confirm("Clear local messages?")) return;
+    const db = await openDb();
+    const tx=db.transaction(["messages","files"],"readwrite");
+    tx.objectStore("messages").clear();
+    tx.objectStore("files").clear();
+    tx.oncomplete=()=> messagesEl.innerHTML="";
+};
 
 })();
 </script>
