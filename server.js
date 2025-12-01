@@ -24,11 +24,13 @@ function broadcastUsers() {
 io.on("connection", socket => {
     console.log("connected:", socket.id);
 
+    // send current users to the new client
     socket.emit("users-list", users);
 
     /* JOIN */
     socket.on("join", ({ name, avatar }) => {
-        socket.data.user = { name, avatar };
+        const safeName = (name && typeof name === "string") ? name : `User-${Math.floor(Math.random()*10000)}`;
+        socket.data.user = { name: safeName, avatar: avatar || null };
         users[socket.id] = socket.data.user;
 
         socket.broadcast.emit("user-joined", {
@@ -37,11 +39,13 @@ io.on("connection", socket => {
         });
 
         broadcastUsers();
+        console.log(`join: ${socket.id} -> ${safeName}`);
     });
 
     /* UPDATE PROFILE */
     socket.on("update-profile", ({ name, avatar }) => {
-        socket.data.user = { name, avatar };
+        const safeName = (name && typeof name === "string") ? name : socket.data.user?.name || `User-${Math.floor(Math.random()*10000)}`;
+        socket.data.user = { name: safeName, avatar: avatar || null };
         users[socket.id] = socket.data.user;
 
         io.emit("profile-updated", {
@@ -54,7 +58,7 @@ io.on("connection", socket => {
 
     /* TYPING */
     socket.on("typing", () => {
-        socket.broadcast.emit("typing", { user: socket.data.user });
+        if(socket.data.user) socket.broadcast.emit("typing", { user: socket.data.user });
     });
 
     socket.on("stop-typing", () => {
@@ -63,11 +67,13 @@ io.on("connection", socket => {
 
     /* TEXT MESSAGE */
     socket.on("chat-message", msg => {
+        // don't trust client timestamps fully, but forward message
         socket.broadcast.emit("chat-message", msg);
     });
 
     /* FILE MESSAGE */
     socket.on("file-message", payload => {
+        // socket.io handles binary payloads; just forward
         socket.broadcast.emit("file-message", payload);
     });
 
@@ -80,11 +86,12 @@ io.on("connection", socket => {
     socket.on("disconnect", () => {
         socket.broadcast.emit("user-left", {
             id: socket.id,
-            user: socket.data.user || { name: "Unknown" }
+            user: socket.data.user || { name: "Unknown", avatar: null }
         });
 
         delete users[socket.id];
         broadcastUsers();
+        console.log("disconnected:", socket.id);
     });
 });
 
