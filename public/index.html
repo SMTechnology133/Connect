@@ -140,7 +140,7 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
 
 <script>
-/* FIXED FULL JS (patch-only, preserves structure & CSS) */
+/* FIXED FULL JS (read-loop prevention + smoothness improvements) */
 
 (async function(){
 
@@ -160,7 +160,6 @@ const colorFrom = name=>{
 // sanitize to remove control characters that cause the replacement char ()
 function sanitizeText(s){
     if(!s || typeof s !== "string") return s || "";
-    // remove control chars (U+0000 - U+001F, U+007F - U+009F)
     return s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
 }
 
@@ -216,7 +215,6 @@ avatarInput.onchange = e =>{
         storedAvatar = dataURL; // keep local var up to date
         setAvatar(dataURL);
         if(socket && socket.connected){
-            // sanitize name before sending
             socket.emit("update-profile",{name: sanitizeText(name), avatar:dataURL});
         }
     };
@@ -305,22 +303,62 @@ history.forEach(m=> addMessageDOM(m));
 /* socket io */
 const socket = io();
 
-/* Local helper to auto-mark a message read if visible */
+/* ------------------------- Read receipt control state ------------------------- */
+/* emittedReads: message ids this client has already emitted a read for (prevents re-emitting) */
+const emittedReads = new Set();
+
+/* processedReadReceipts: keys 'messageId|reader' we've already processed/displayed as system message */
+const processedReadReceipts = new Set();
+
+/* per-message emit throttle (ms) - prevents spamming server if many events happen quickly */
+const READ_THROTTLE_MS = 800;
+
+/* track last emit times per messageId */
+const lastEmitForMessage = new Map();
+
+/* helper to decide if we should emit read for a message now */
+function shouldEmitRead(messageId){
+    if(!messageId) return false;
+    if(emittedReads.has(messageId)) return false;
+    const last = lastEmitForMessage.get(messageId) || 0;
+    if(Date.now() - last < READ_THROTTLE_MS) return false;
+    return true;
+}
+
+/* mark message as emitted-read locally (prevents future duplicate emits) */
+function markEmitted(messageId){
+    if(!messageId) return;
+    emittedReads.add(messageId);
+    lastEmitForMessage.set(messageId, Date.now());
+}
+
+/* emit a message-read but guard duplicates */
+function emitMessageReadGuarded(messageId){
+    if(!messageId) return;
+    if(!shouldEmitRead(messageId)) return;
+    const payload = {
+        messageId,
+        reader: sanitizeText(name),
+        avatar: storedAvatar || null,
+        ts: Date.now()
+    };
+    socket.emit("message-read", payload);
+    markEmitted(messageId);
+}
+
+/* ------------------------- end read control state ------------------------- */
+
+/* Local helper to auto-mark a appearing message as read if visible */
 async function markMessageReadIfVisible(msgId){
     if(document.visibilityState === "visible"){
-        socket.emit("message-read", {
-            messageId: msgId,
-            reader: sanitizeText(name),
-            avatar: storedAvatar || null,
-            ts: Date.now()
-        });
+        emitMessageReadGuarded(msgId);
     }
 }
 
+/* When socket connects send join; server will send 'history' too */
 socket.on("connect",()=>{
     connStatus.textContent="Connected";
     m_connStatus.textContent="Connected";
-    // send join and ask server for history (server will send 'history' automatically on connect)
     socket.emit("join",{name: sanitizeText(name),avatar:storedAvatar});
 });
 
@@ -329,7 +367,7 @@ socket.on("disconnect",()=>{
     m_connStatus.textContent="Disconnected";
 });
 
-/* Users */
+/* Users rendering */
 let users = {};
 
 function renderUsers(){
@@ -391,7 +429,6 @@ socket.on("user-left", data=>{
     }
 });
 
-/* profile updated */
 socket.on("profile-updated",({id,user})=>{
     if(user && user.name) user.name = sanitizeText(user.name);
     users[id]=user;
@@ -416,41 +453,40 @@ socket.on("stop-typing",()=>{
     m_typing.textContent="—";
 });
 
-/* server history: when connecting the server will emit 'history' — a list of messages in memory (only server lifetime) */
+/* ------------------------- History handling ------------------------- */
+/* server emits 'history' (in-memory messages) on connect */
 socket.on("history", async messages=>{
     if(!Array.isArray(messages)) return;
-    // store server messages in local IndexedDB and render (avoid duplicating existing)
+    // store server messages in local IndexedDB (put will upsert)
     for(const msg of messages){
-        // sanitize sender/name/text
         if(msg.sender) msg.sender = sanitizeText(msg.sender);
         if(msg.text) msg.text = sanitizeText(msg.text);
-
-        // don't duplicate: attempt to store; put will replace existing by id
         await put("messages", msg);
     }
-    // reload local messages and render again (simple approach)
+    // reload local messages and render again (avoid duplicates)
     const local = await getAll("messages");
     local.sort((a,b)=>a.ts-b.ts);
     messagesEl.innerHTML = "";
     local.forEach(m=> addMessageDOM(m));
+    // do not auto-emit read for every message here to avoid flood;
+    // we'll only auto-emit for new incoming messages and on visibility change below
 });
+/* ------------------------- end history ------------------------- */
 
-/* Receive text */
+/* Receive text message */
 socket.on("chat-message", async msg=>{
-    // sanitize
     if(msg.sender) msg.sender = sanitizeText(msg.sender);
     if(msg.text) msg.text = sanitizeText(msg.text);
 
     await put("messages", msg);
     addMessageDOM(msg);
 
-    // auto-mark read if user is looking at chat
+    // auto mark read for this single message if visible (guarded)
     markMessageReadIfVisible(msg.id);
 });
 
 /* Receive file + PREVIEW */
 socket.on("file-message", async payload=>{
-    // payload.arrayBuffer is expected; create Blob from it
     try {
         const blob = new Blob([payload.arrayBuffer], {type:payload.fileType || "application/octet-stream"});
         await put("files",{id:payload.fileId,blob});
@@ -471,7 +507,7 @@ socket.on("file-message", async payload=>{
     await put("messages", msg);
     addMessageDOM(msg);
 
-    // auto mark read if visible
+    // auto mark read for this file message if visible (guarded)
     markMessageReadIfVisible(msg.id);
 });
 
@@ -495,7 +531,7 @@ function createPreview(fileName, fileType, blobURL){
 
 /* DOM messages */
 async function addMessageDOM(m){
-    // avoid rendering twice: check if message already exists in DOM by id data-attr
+    // avoid rendering twice
     if(document.querySelector(`[data-msgid="${m.id}"]`)) return;
 
     const box=document.createElement("div");
@@ -511,7 +547,6 @@ async function addMessageDOM(m){
         av.style.background=colorFrom(m.sender);
     }
 
-    // message body container
     const contentWrap = document.createElement("div");
     contentWrap.style.display = "flex";
     contentWrap.style.flexDirection = "column";
@@ -526,21 +561,18 @@ async function addMessageDOM(m){
     body.style.marginTop="6px";
     body.style.wordBreak = "break-word";
 
-    // text message
     if(m.text){
         const p = document.createElement("div");
         p.textContent = m.text;
         body.appendChild(p);
     }
 
-    // file message preview
     if(m.fileId){
         const blob = await getFile(m.fileId);
         if(blob){
             const url = URL.createObjectURL(blob);
             const preview = createPreview(m.fileName, m.fileType, url);
 
-            // filename + download anchor
             const nameDiv = document.createElement("div");
             nameDiv.className = "file-name";
             const a = document.createElement("a");
@@ -550,14 +582,12 @@ async function addMessageDOM(m){
             a.className = "file-link";
             nameDiv.appendChild(a);
 
-            // preview container
             const wrap = document.createElement("div");
             wrap.innerHTML = preview.html;
 
             body.appendChild(nameDiv);
             body.appendChild(wrap);
 
-            // revoke object URL after a bit (to avoid early invalidation on some browsers)
             setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(e){} }, 60 * 1000);
         } else {
             const noDiv = document.createElement("div");
@@ -566,22 +596,15 @@ async function addMessageDOM(m){
         }
     }
 
-    // combine parts: avatar + content
     box.append(av);
 
     contentWrap.appendChild(meta);
     contentWrap.appendChild(body);
     box.append(contentWrap);
 
-    // clicking a message will emit a read receipt (manual)
+    /* clicking a message will emit a single read receipt for that message (guarded) */
     box.onclick = () => {
-        socket.emit("message-read", {
-            messageId: m.id,
-            reader: sanitizeText(name),
-            avatar: storedAvatar || null,
-            ts: Date.now()
-        });
-        // optional visual feedback: briefly highlight
+        emitMessageReadGuarded(m.id);
         box.style.boxShadow = "0 0 0 2px rgba(255,255,255,0.08) inset";
         setTimeout(()=> box.style.boxShadow = "", 700);
     };
@@ -591,12 +614,11 @@ async function addMessageDOM(m){
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-/* System message that can include avatar when user joins/leaves/read */
+/* System message (join/leave/read) */
 function addSystem(text, user){
     const box=document.createElement("div");
-    box.className="msg in"; // system messages appear as incoming style
+    box.className="msg in";
 
-    // create small avatar if user provided
     const av=document.createElement("div");
     av.className="avatar";
     if(user && user.avatar){
@@ -632,22 +654,31 @@ function addSystem(text, user){
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-/* Handle incoming read receipts by showing a small system message */
+/* Receive read receipts (server-side dedupe plus client-side dedupe prevents loop) */
 socket.on("message-read", data=>{
-    if(!data) return;
+    if(!data || !data.messageId) return;
     const reader = sanitizeText(data.reader || "Someone");
     const avatar = data.avatar || null;
+    const key = `${data.messageId}|${reader}`;
+
+    // client-side dedupe: ignore duplicate receipts we've already processed
+    if(processedReadReceipts.has(key)) return;
+    processedReadReceipts.add(key);
+
+    // show a single system line for this read event
     addSystem(`${reader} read a message`, { name: reader, avatar });
+
+    // optionally, mark locally that this message was read (so we don't emit it again later)
+    emittedReads.add(data.messageId);
 });
 
-/* send */
+/* -------------------- Sending messages & files -------------------- */
 sendBtn.onclick = async () =>{
     const text = sanitizeText(textInput.value.trim());
     const file = fileInput.files[0];
 
     if(!text && !file) return;
 
-    /* file */
     if(file){
         const arrayBuffer = await file.arrayBuffer();
         const fileId = uid("file");
@@ -656,7 +687,7 @@ sendBtn.onclick = async () =>{
         const payload={
             id:msgId,
             sender: sanitizeText(name),
-            avatar: storedAvatar,
+            avatar:storedAvatar,
             fileId,
             fileName:file.name,
             fileType:file.type,
@@ -664,7 +695,6 @@ sendBtn.onclick = async () =>{
             arrayBuffer
         };
 
-        // store file locally and message locally then emit
         await put("files",{id:fileId, blob:file});
         await put("messages",{...payload,out:true});
         addMessageDOM({...payload,out:true});
@@ -672,7 +702,6 @@ sendBtn.onclick = async () =>{
         socket.emit("file-message",payload);
     }
 
-    /* text */
     if(text){
         const msg={
             id:uid("msg"),
@@ -701,18 +730,39 @@ clearBtn.onclick = async () =>{
     tx.oncomplete=()=> messagesEl.innerHTML="";
 };
 
-/* when page becomes visible, emit read for all messages we haven't read yet (simple approach) */
+/* When page becomes visible, emit reads for messages we haven't emitted yet (guarded) */
 document.addEventListener("visibilitychange", async ()=>{
     if(document.visibilityState === "visible"){
-        // mark all messages in local DB as read by emitting message-read for each message id
         const local = await getAll("messages");
         for(const m of local){
-            socket.emit("message-read", {
-                messageId: m.id,
-                reader: sanitizeText(name),
-                avatar: storedAvatar || null,
-                ts: Date.now()
-            });
+            // only emit for messages we haven't emitted read for
+            if(m && m.id && shouldEmitRead(m.id)){
+                emitMessageReadGuarded(m.id);
+            }
+        }
+    }
+});
+
+/* When the page is first loaded and visible, emit read for any new messages (guarded)
+   Small delay ensures that initial history render finishes before emitting reads.
+*/
+if(document.visibilityState === "visible"){
+    setTimeout(async ()=>{
+        const local = await getAll("messages");
+        for(const m of local){
+            if(m && m.id && shouldEmitRead(m.id)){
+                emitMessageReadGuarded(m.id);
+            }
+        }
+    }, 700);
+}
+
+/* Also listen for window focus - emit for new messages when user returns */
+window.addEventListener("focus", async ()=>{
+    const local = await getAll("messages");
+    for(const m of local){
+        if(m && m.id && shouldEmitRead(m.id)){
+            emitMessageReadGuarded(m.id);
         }
     }
 });
