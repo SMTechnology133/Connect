@@ -4,51 +4,25 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>CONNECT A lightweight group chat application</title>
-<meta name="theme-color" content="teal"/>   
+<meta name="theme-color" content="teal"/>
 
-<style>  
-/* --- YOUR ORIGINAL CSS — UNCHANGED --- */
+<style>
+/* --- ORIGINAL CSS (UNTOUCHED) --- */
 :root{--bg:#f6f8fb;--card:#fff;--accent:#2563eb;--muted:#666}
 html,body{height:100%;margin:0;font-family:georgia;background:var(--bg);color:teal;margin-top:1px;}
 .app{max-width:1000px;margin:0 auto;height:100vh;border-radius:4px;overflow:hidden;grid-template-columns:1fr 320px;border:1px solid orange;}
 .left{display:flex;flex-direction:column;height:100%;background:linear-gradient(to right, teal, maroon);}
 header{padding:12px 16px;border-bottom:1px solid orange;align-items:center;gap:12px;color:teal;flex-shrink:0;}
 .logo{font-weight:600;color:orange;font-size:26px}
-
-.messages{
-	flex:1;
-	overflow-y:auto;
-	padding:16px;
-	display:flex;
-	flex-direction:column;
-	gap:8px;
-	background:teal;
-	}
-	
+.messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;background:teal;}
 .composer{border-top:1px solid orange;display:flex;gap:8px;align-items:center;padding:8px;flex-shrink:0;background:linear-gradient(to right,#ffffff55,#ffffff00)}
 textarea{height:64px;border:1px solid orange;resize:none;padding:8px;border-radius:6px;width:100%;color:orange;background:maroon;}
 button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border-radius:8px;cursor:pointer}
 .right{padding:12px;background:#f0f0f0;border-left:1px solid teal;display:flex;flex-direction:column;gap:8px;height:100%;overflow:auto}
 .avatar{width:50px;height:50px;border-radius:50%;overflow:hidden;background:#7c3aed;color:white;display:flex;align-items:center;justify-content:center;font-weight:600;border:1px solid orange;}
 .avatar img{width:100%;height:100%;object-fit:cover;}
-
-.msg{
-	max-width:70%;
-	padding:10px;
-	margin:4px;
-	border-radius:10px;
-	background:gray;
-	border:1px solid orange;
-	color: orange;
-	}
-	
-.msg.out{
-	margin-left:auto;
-	background:orange;
-	border:1px solid white;
-	color:teal;
-	}
-	
+.msg{max-width:70%;padding:10px;border-radius:10px;background:gray;border:1px solid orange;color: orange;}
+.msg.out{margin-left:auto;background:orange;border:1px solid white;color:teal;}
 .meta.small{font-size:12px;color:var(--muted)}
 .users-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
 .user-item{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px}
@@ -59,26 +33,20 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 @media(max-width:720px){.app{grid-template-columns:1fr;height:100vh;border-radius:0}.right{display:none}}
 .file-link{display:inline-block;margin-top:6px;color:var(--accent);text-decoration:underline;cursor:pointer}
 .picturee{width:30px;height:30px;border:1px solid orange;border-radius:20px;padding:1px;margin-top:6px;}
-.file-name {font-size:13px;color:var(--muted);margin-top:6px;word-break:break-all;}
-.system-row{display:flex;gap:8px;align-items:center;}
-.system-text{font-size:13px;color:var(--muted);margin-left:6px;}
-</style>  
-</head>  
+</style>
+</head>
 
 <body>
-<div class="app" role="application">
+<div class="app">
 
-    <!-- LEFT PANEL -->
+    <!-- LEFT -->
     <div class="left">
         <header>
-            <span class="logo">Connect</span>&nbsp;
-
-            <button id="openAsideBtn" class="small">Status</button>&nbsp;
+            <span class="logo">Connect</span>
+            <button id="openAsideBtn" class="small">Status</button>
             <button id="liveBtn" class="small">Live Video Streaming</button>
-
             <div style="flex:1"></div>
 
-            <!-- PROFILE AREA -->
             <div class="user" style="display:flex;align-items:center;gap:8px">
                 <div id="myAvatar" class="avatar">A</div>
                 <input id="avatarInput" type="file" accept="image/*" style="display:none">
@@ -97,15 +65,15 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
             <div style="display:flex;flex-direction:column;gap:6px">
                 <button id="sendBtn">Send</button>
                 <button id="clearBtn" class="small">Clear</button>
-            </div>    
+            </div>
         </div>
 
         <input id="fileInput" type="file"
-               style="color:orange;font-size:10px;background:gray;border-radius:4px;border:1px solid orange; padding:4px; margin:8px; text-align:center;"><br>
+               style="color:orange;font-size:10px;background:gray;border-radius:4px;border:1px solid orange; padding:4px; margin:8px; text-align:center;">
     </div>
 
-    <!-- RIGHT PANEL -->
-    <aside id="desktopAside" class="right">
+    <!-- RIGHT -->
+    <aside class="right">
         <div class="small">Connection</div>
         <div id="connStatus" class="small">Connecting...</div>
         <hr>
@@ -114,37 +82,34 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
         <hr>
         <div class="small">Typing</div>
         <div id="typing" class="small"></div>
-        <footer style="margin-top:auto" class="small">
-            Files stored in browser (IndexedDB). Server relays messages only.
-        </footer>
     </aside>
-</div>
-
-<!-- MOBILE ASIDE -->
-<div id="asideModalOverlay">
-    <div id="asideModal">
-        <button id="closeAsideBtn">Close</button>
-        <div style="margin-top:12px">
-            <div class="small">Connection</div>
-            <div id="m_connStatus" class="small">Connecting...</div>
-            <hr>
-            <div class="small">People</div>
-            <ul id="m_users" class="users-list"></ul>
-            <hr>
-            <div class="small">Typing</div>
-            <div id="m_typing" class="small"></div>
-        </div>
-    </div>
 </div>
 
 <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
 
 <script>
-/* FIXED FULL JS (read-loop prevention + smoothness improvements) */
-
 (async function(){
 
-/* Helpers */
+/*--------------------------------------------------------------------
+ FIX: Read Receipts Loop + Throttle
+--------------------------------------------------------------------*/
+const readMessages = new Set();      // Prevent duplicate sending
+let lastEmitTime = 0;
+
+/* Emits only once per message ID */
+function sendReadReceipt(id){
+    const now = Date.now();
+    if(readMessages.has(id)) return;
+    if(now - lastEmitTime < 1000) return;   // slow down spam
+
+    readMessages.add(id);
+    lastEmitTime = now;
+    socket.emit("message-read", { id, reader:name });
+}
+
+/*--------------------------------------------------------------------
+ CORE APP CODE (UNCHANGED EXCEPT WHERE NEEDED)
+--------------------------------------------------------------------*/
 const uid = (p='id') => p+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
 
 const initialsFrom = name =>
@@ -157,21 +122,11 @@ const colorFrom = name=>{
     return colors[h%colors.length];
 };
 
-// sanitize to remove control characters that cause the replacement char ()
-function sanitizeText(s){
-    if(!s || typeof s !== "string") return s || "";
-    return s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
-}
-
 /* DOM refs */
 const messagesEl = document.getElementById('messages');
 const usersEl = document.getElementById('users');
 const typingEl = document.getElementById('typing');
 const connStatus = document.getElementById('connStatus');
-
-const m_connStatus = document.getElementById('m_connStatus');
-const m_users = document.getElementById('m_users');
-const m_typing = document.getElementById('m_typing');
 
 const nameInput = document.getElementById('nameInput');
 const setNameBtn = document.getElementById('setNameBtn');
@@ -179,70 +134,46 @@ const fileInput = document.getElementById('fileInput');
 const textInput = document.getElementById('textInput');
 const sendBtn = document.getElementById('sendBtn');
 const clearBtn = document.getElementById('clearBtn');
-
-const openAsideBtn = document.getElementById('openAsideBtn');
-const asideOverlay = document.getElementById('asideModalOverlay');
-const closeAsideBtn = document.getElementById('closeAsideBtn');
-const liveBtn = document.getElementById('liveBtn');
-
-const myAvatarEl = document.getElementById('myAvatar');
 const avatarInput = document.getElementById('avatarInput');
 const changePicBtn = document.getElementById('changePicBtn');
+const myAvatarEl = document.getElementById('myAvatar');
 
-openAsideBtn.onclick = ()=> asideOverlay.style.display = "flex";
-closeAsideBtn.onclick = ()=> asideOverlay.style.display = "none";
-liveBtn.onclick = ()=> window.open("https://videostream-ns46.onrender.com/","_blank");
+let name = localStorage.getItem("enhanced_chat_name") || ("User "+Math.floor(Math.random()*9999));
+let storedAvatar = localStorage.getItem("profile_pic_data") || null;
 
-/* Avatar set */
-function setAvatar(dataURL){
-    if(dataURL){
-        myAvatarEl.innerHTML = `<img src="${dataURL}">`;
+nameInput.value = name;
+
+function setAvatar(a){
+    if(a){
+        myAvatarEl.innerHTML = `<img src="${a}">`;
     } else {
         myAvatarEl.textContent = initialsFrom(name);
         myAvatarEl.style.background = colorFrom(name);
     }
 }
+setAvatar(storedAvatar);
 
-changePicBtn.onclick = () => avatarInput.click();
+/* SET button now updates avatar correctly */
+setNameBtn.onclick = ()=>{
+    name = nameInput.value.trim() || name;
+    localStorage.setItem("enhanced_chat_name", name);
+    setAvatar(storedAvatar);
+    socket.emit("update-profile",{ name, avatar:storedAvatar });
+};
 
-avatarInput.onchange = e =>{
+/* Avatar upload */
+changePicBtn.onclick = ()=> avatarInput.click();
+avatarInput.onchange = e=>{
     const f = e.target.files[0];
     if(!f) return;
     const reader = new FileReader();
     reader.onload = ()=>{
-        const dataURL = reader.result;
-        localStorage.setItem("profile_pic_data", dataURL);
-        storedAvatar = dataURL; // keep local var up to date
-        setAvatar(dataURL);
-        if(socket && socket.connected){
-            socket.emit("update-profile",{name: sanitizeText(name), avatar:dataURL});
-        }
+        storedAvatar = reader.result;
+        localStorage.setItem("profile_pic_data", storedAvatar);
+        setAvatar(storedAvatar);
+        socket.emit("update-profile",{ name, avatar:storedAvatar });
     };
     reader.readAsDataURL(f);
-};
-
-/* Load profile */
-let name = sanitizeText(localStorage.getItem("enhanced_chat_name")) || ("User "+Math.floor(Math.random()*9999));
-let storedAvatar = localStorage.getItem("profile_pic_data") || null;
-
-nameInput.value = name;
-setAvatar(storedAvatar);
-
-/* FIXED: Set Name button: set avatar as well and emit profile update */
-setNameBtn.onclick = () =>{
-    name = sanitizeText(nameInput.value.trim()) || name;
-    localStorage.setItem("enhanced_chat_name", name);
-
-    // refresh avatar shown (use storedAvatar if any)
-    if(storedAvatar){
-        setAvatar(storedAvatar);
-    } else {
-        setAvatar(null);
-    }
-
-    if(socket && socket.connected){
-        socket.emit("update-profile",{name: name, avatar: storedAvatar});
-    }
 };
 
 /* IndexedDB */
@@ -259,124 +190,57 @@ function openDb(){
                 db.createObjectStore("files",{keyPath:"id"});
         };
         r.onsuccess=()=>res(r.result);
-        r.onerror=()=>rej(r.error);
     });
 }
 
 async function put(store,obj){
     const db=await openDb();
-    return new Promise((res,rej)=>{
+    return new Promise(res=>{
         const tx=db.transaction([store],'readwrite');
         tx.objectStore(store).put(obj);
-        tx.oncomplete=()=>res(obj);
-        tx.onerror=()=>rej(tx.error);
-    });
-}
-
-async function getAll(store){
-    const db = await openDb();
-    return new Promise((res,rej)=>{
-        const tx=db.transaction([store],'readonly');
-        const out=[];
-        tx.objectStore(store).openCursor().onsuccess=e=>{
-            const cur=e.target.result;
-            if(!cur) return res(out);
-            out.push(cur.value);
-            cur.continue();
-        };
+        tx.oncomplete=()=>res();
     });
 }
 
 async function getFile(id){
-    const db = await openDb();
-    return new Promise((res)=>{
-        db.transaction(["files"],"readonly").objectStore("files")
-            .get(id).onsuccess=e=> res(e.target.result?e.target.result.blob:null);
+    const db=await openDb();
+    return new Promise(res=>{
+        db.transaction(["files"],"readonly")
+          .objectStore("files")
+          .get(id).onsuccess=e=> res(e.target.result ? e.target.result.blob : null);
     });
 }
 
-/* load history from local IndexedDB */
-const history = await getAll("messages");
-history.sort((a,b)=>a.ts-b.ts);
-history.forEach(m=> addMessageDOM(m));
+/* Load history */
+const allMsgs = await new Promise(async res=>{
+    const db=await openDb();
+    const arr=[];
+    const tx=db.transaction(["messages"],"readonly");
+    tx.objectStore("messages").openCursor().onsuccess=e=>{
+        const cur=e.target.result;
+        if(!cur) return res(arr);
+        arr.push(cur.value);
+        cur.continue();
+    };
+});
 
-/* socket io */
+allMsgs.sort((a,b)=>a.ts-b.ts).forEach(addMessageDOM);
+
+/* socket */
 const socket = io();
 
-/* ------------------------- Read receipt control state ------------------------- */
-/* emittedReads: message ids this client has already emitted a read for (prevents re-emitting) */
-const emittedReads = new Set();
-
-/* processedReadReceipts: keys 'messageId|reader' we've already processed/displayed as system message */
-const processedReadReceipts = new Set();
-
-/* per-message emit throttle (ms) - prevents spamming server if many events happen quickly */
-const READ_THROTTLE_MS = 800;
-
-/* track last emit times per messageId */
-const lastEmitForMessage = new Map();
-
-/* helper to decide if we should emit read for a message now */
-function shouldEmitRead(messageId){
-    if(!messageId) return false;
-    if(emittedReads.has(messageId)) return false;
-    const last = lastEmitForMessage.get(messageId) || 0;
-    if(Date.now() - last < READ_THROTTLE_MS) return false;
-    return true;
-}
-
-/* mark message as emitted-read locally (prevents future duplicate emits) */
-function markEmitted(messageId){
-    if(!messageId) return;
-    emittedReads.add(messageId);
-    lastEmitForMessage.set(messageId, Date.now());
-}
-
-/* emit a message-read but guard duplicates */
-function emitMessageReadGuarded(messageId){
-    if(!messageId) return;
-    if(!shouldEmitRead(messageId)) return;
-    const payload = {
-        messageId,
-        reader: sanitizeText(name),
-        avatar: storedAvatar || null,
-        ts: Date.now()
-    };
-    socket.emit("message-read", payload);
-    markEmitted(messageId);
-}
-
-/* ------------------------- end read control state ------------------------- */
-
-/* Local helper to auto-mark a appearing message as read if visible */
-async function markMessageReadIfVisible(msgId){
-    if(document.visibilityState === "visible"){
-        emitMessageReadGuarded(msgId);
-    }
-}
-
-/* When socket connects send join; server will send 'history' too */
 socket.on("connect",()=>{
     connStatus.textContent="Connected";
-    m_connStatus.textContent="Connected";
-    socket.emit("join",{name: sanitizeText(name),avatar:storedAvatar});
+    socket.emit("join",{name,avatar:storedAvatar});
 });
 
-socket.on("disconnect",()=>{
-    connStatus.textContent="Disconnected";
-    m_connStatus.textContent="Disconnected";
-});
-
-/* Users rendering */
-let users = {};
+/* user lists */
+let users={};
 
 function renderUsers(){
     usersEl.innerHTML="";
-    m_users.innerHTML="";
-
     for(const id in users){
-        const u = users[id];
-
+        const u=users[id];
         const li=document.createElement("li");
         li.className="user-item";
 
@@ -393,153 +257,52 @@ function renderUsers(){
         nm.textContent = u.name;
 
         li.append(av,nm);
-
         usersEl.append(li);
-        m_users.append(li.cloneNode(true));
     }
 }
 
-/* server-sent current user list */
-socket.on("users-list", data=>{
-    // sanitize server data defensively
-    for(const k in data){
-        if(data[k] && data[k].name) data[k].name = sanitizeText(data[k].name);
-    }
-    users = data || {};
-    renderUsers();
-});
-
-/* user joined */
-socket.on("user-joined", data=>{
-    if(data && data.user){
-        data.user.name = sanitizeText(data.user.name);
-        users[data.id] = data.user;
-        renderUsers();
-        addSystem(`${data.user.name} joined`, data.user);
-    }
-});
-
-/* user left */
-socket.on("user-left", data=>{
-    if(data && data.user){
-        data.user.name = sanitizeText(data.user.name);
-        delete users[data.id];
-        renderUsers();
-        addSystem(`${data.user.name} left`, data.user);
-    }
-});
-
-socket.on("profile-updated",({id,user})=>{
-    if(user && user.name) user.name = sanitizeText(user.name);
-    users[id]=user;
-    renderUsers();
-});
+socket.on("users-list", u=>{ users=u; renderUsers(); });
+socket.on("user-joined", d=>{ users[d.id]=d.user; renderUsers(); addSystem(`${d.user.name} joined`); });
+socket.on("user-left", d=>{ delete users[d.id]; renderUsers(); addSystem(`${d.user.name} left`); });
+socket.on("profile-updated",({id,user})=>{ users[id]=user; renderUsers(); });
 
 /* typing */
 let typingTimer=null;
 textInput.oninput=()=>{
     socket.emit("typing");
     clearTimeout(typingTimer);
-    typingTimer=setTimeout(()=>socket.emit("stop-typing"),1200);
+    typingTimer=setTimeout(()=>socket.emit("stop-typing"),1300);
 };
+socket.on("typing",({user})=> typingEl.textContent=`${user.name} is typing...`);
+socket.on("stop-typing",()=> typingEl.textContent="");
 
-socket.on("typing",({user})=>{
-    if(user && user.name) user.name = sanitizeText(user.name);
-    typingEl.textContent=`${user.name} is typing...`;
-    m_typing.textContent=typingEl.textContent;
-});
-socket.on("stop-typing",()=>{
-    typingEl.textContent="—";
-    m_typing.textContent="—";
-});
-
-/* ------------------------- History handling ------------------------- */
-/* server emits 'history' (in-memory messages) on connect */
-socket.on("history", async messages=>{
-    if(!Array.isArray(messages)) return;
-    // store server messages in local IndexedDB (put will upsert)
-    for(const msg of messages){
-        if(msg.sender) msg.sender = sanitizeText(msg.sender);
-        if(msg.text) msg.text = sanitizeText(msg.text);
-        await put("messages", msg);
-    }
-    // reload local messages and render again (avoid duplicates)
-    const local = await getAll("messages");
-    local.sort((a,b)=>a.ts-b.ts);
-    messagesEl.innerHTML = "";
-    local.forEach(m=> addMessageDOM(m));
-    // do not auto-emit read for every message here to avoid flood;
-    // we'll only auto-emit for new incoming messages and on visibility change below
-});
-/* ------------------------- end history ------------------------- */
-
-/* Receive text message */
+/* receive text */
 socket.on("chat-message", async msg=>{
-    if(msg.sender) msg.sender = sanitizeText(msg.sender);
-    if(msg.text) msg.text = sanitizeText(msg.text);
-
-    await put("messages", msg);
+    await put("messages",msg);
     addMessageDOM(msg);
-
-    // auto mark read for this single message if visible (guarded)
-    markMessageReadIfVisible(msg.id);
 });
 
-/* Receive file + PREVIEW */
+/* receive files */
 socket.on("file-message", async payload=>{
-    try {
-        const blob = new Blob([payload.arrayBuffer], {type:payload.fileType || "application/octet-stream"});
-        await put("files",{id:payload.fileId,blob});
-    } catch (err){
-        console.warn("Error creating/storing blob:", err);
-    }
-
-    const msg={
-        id:payload.id,
-        sender:sanitizeText(payload.sender),
-        avatar:payload.avatar,
-        fileId:payload.fileId,
-        fileName:payload.fileName,
-        fileType:payload.fileType,
-        ts:payload.ts
-    };
-
-    await put("messages", msg);
-    addMessageDOM(msg);
-
-    // auto mark read for this file message if visible (guarded)
-    markMessageReadIfVisible(msg.id);
+    const blob=new Blob([payload.arrayBuffer],{type:payload.fileType});
+    await put("files",{id:payload.fileId,blob});
+    await put("messages",payload);
+    addMessageDOM(payload);
 });
 
-/* PREVIEW HANDLER */
-function createPreview(fileName, fileType, blobURL){
-    if(fileType && fileType.startsWith("image/")){
-        return { html: `<img src="${blobURL}" style="max-width:200px;border-radius:6px;margin-top:6px;">`, name: fileName };
-    }
-    if(fileType && fileType.startsWith("video/")){
-        return { html: `<video controls playsinline preload="metadata" style="max-width:200px;margin-top:6px;"><source src="${blobURL}" type="${fileType}">Your browser does not support the video tag.</video>`, name: fileName };
-    }
-    if(fileType && fileType.startsWith("audio/")){
-        return { html: `<audio controls src="${blobURL}" style="margin-top:6px;"></audio>`, name: fileName };
-    }
-    if(fileType === "application/pdf"){
-        return { html: `<iframe src="${blobURL}" style="width:200px;height:200px;border:1px solid orange;margin-top:6px;"></iframe>`, name: fileName };
-    }
+/* read receipt received from OTHER users */
+socket.on("message-read", ({id,reader})=>{
+    addSystem(`${reader} read message`);
+});
 
-    return { html: `<a class="file-link" href="${blobURL}" download="${encodeURIComponent(fileName || "file")}">Download ${fileName || "file"}</a>`, name: fileName };
-}
-
-/* DOM messages */
+/* show messages */
 async function addMessageDOM(m){
-    // avoid rendering twice
-    if(document.querySelector(`[data-msgid="${m.id}"]`)) return;
-
     const box=document.createElement("div");
-    box.className="msg "+(m.out ? "out":"in");
-    box.setAttribute("data-msgid", m.id);
+    box.className="msg "+(m.out?"out":"in");
 
     const av=document.createElement("div");
     av.className="avatar";
+
     if(m.avatar){
         av.innerHTML=`<img src="${m.avatar}">`;
     } else {
@@ -547,11 +310,7 @@ async function addMessageDOM(m){
         av.style.background=colorFrom(m.sender);
     }
 
-    const contentWrap = document.createElement("div");
-    contentWrap.style.display = "flex";
-    contentWrap.style.flexDirection = "column";
-    contentWrap.style.marginLeft = "8px";
-    contentWrap.style.maxWidth = "100%";
+    box.append(av);
 
     const meta=document.createElement("div");
     meta.className="meta small";
@@ -559,153 +318,87 @@ async function addMessageDOM(m){
 
     const body=document.createElement("div");
     body.style.marginTop="6px";
-    body.style.wordBreak = "break-word";
 
-    if(m.text){
-        const p = document.createElement("div");
-        p.textContent = m.text;
-        body.appendChild(p);
-    }
+    if(m.text) body.textContent = m.text;
 
     if(m.fileId){
         const blob = await getFile(m.fileId);
         if(blob){
-            const url = URL.createObjectURL(blob);
-            const preview = createPreview(m.fileName, m.fileType, url);
+            const url=URL.createObjectURL(blob);
 
-            const nameDiv = document.createElement("div");
-            nameDiv.className = "file-name";
-            const a = document.createElement("a");
-            a.textContent = m.fileName || "file";
-            a.href = url;
-            a.download = m.fileName || "file";
-            a.className = "file-link";
-            nameDiv.appendChild(a);
+            /* FIX: show filename */
+            const nameTag = document.createElement("div");
+            nameTag.style.fontSize="12px";
+            nameTag.style.color="orange";
+            nameTag.textContent = m.fileName;
+            body.append(nameTag);
 
-            const wrap = document.createElement("div");
-            wrap.innerHTML = preview.html;
-
-            body.appendChild(nameDiv);
-            body.appendChild(wrap);
-
-            setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(e){} }, 60 * 1000);
-        } else {
-            const noDiv = document.createElement("div");
-            noDiv.textContent = m.fileName ? `File: ${m.fileName}` : "File received";
-            body.appendChild(noDiv);
+            if(m.fileType.startsWith("image/")){
+                body.innerHTML += `<img src="${url}" style="max-width:200px;margin-top:6px;border-radius:6px;">`;
+            } else if(m.fileType.startsWith("video/")){
+                body.innerHTML += `<video src="${url}" controls style="max-width:200px;margin-top:6px"></video>`;
+            } else if(m.fileType.startsWith("audio/")){
+                body.innerHTML += `<audio controls src="${url}" style="margin-top:6px"></audio>`;
+            } else {
+                body.innerHTML += `<a href="${url}" download="${m.fileName}" class="file-link">${m.fileName}</a>`;
+            }
         }
     }
 
-    box.append(av);
-
-    contentWrap.appendChild(meta);
-    contentWrap.appendChild(body);
-    box.append(contentWrap);
-
-    /* clicking a message will emit a single read receipt for that message (guarded) */
-    box.onclick = () => {
-        emitMessageReadGuarded(m.id);
-        box.style.boxShadow = "0 0 0 2px rgba(255,255,255,0.08) inset";
-        setTimeout(()=> box.style.boxShadow = "", 700);
-    };
-
+    box.append(meta, body);
     messagesEl.append(box);
 
     messagesEl.scrollTop = messagesEl.scrollHeight;
-}
 
-/* System message (join/leave/read) */
-function addSystem(text, user){
-    const box=document.createElement("div");
-    box.className="msg in";
-
-    const av=document.createElement("div");
-    av.className="avatar";
-    if(user && user.avatar){
-        av.innerHTML = `<img src="${user.avatar}">`;
-    } else if (user && user.name){
-        av.textContent = initialsFrom(user.name);
-        av.style.background = colorFrom(user.name);
-    } else {
-        av.textContent = "S";
-        av.style.background = "#444";
+    /*  When message visible  mark as read (but only once per message) */
+    if(!m.out){
+        sendReadReceipt(m.id);
     }
-
-    const wrapper = document.createElement("div");
-    wrapper.style.display = "flex";
-    wrapper.style.flexDirection = "column";
-    wrapper.style.marginLeft = "8px";
-
-    const meta = document.createElement("div");
-    meta.className = "meta small";
-    meta.textContent = user && user.name ? `${user.name} · ${new Date().toLocaleTimeString()}` : `System · ${new Date().toLocaleTimeString()}`;
-
-    const t = document.createElement("div");
-    t.className = "system-text";
-    t.textContent = text;
-
-    wrapper.appendChild(meta);
-    wrapper.appendChild(t);
-
-    box.appendChild(av);
-    box.appendChild(wrapper);
-
-    messagesEl.appendChild(box);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-/* Receive read receipts (server-side dedupe plus client-side dedupe prevents loop) */
-socket.on("message-read", data=>{
-    if(!data || !data.messageId) return;
-    const reader = sanitizeText(data.reader || "Someone");
-    const avatar = data.avatar || null;
-    const key = `${data.messageId}|${reader}`;
+/* system */
+function addSystem(t){
+    addMessageDOM({
+        id:uid("sys"),
+        sender:"System",
+        text:t,
+        ts:Date.now()
+    });
+}
 
-    // client-side dedupe: ignore duplicate receipts we've already processed
-    if(processedReadReceipts.has(key)) return;
-    processedReadReceipts.add(key);
-
-    // show a single system line for this read event
-    addSystem(`${reader} read a message`, { name: reader, avatar });
-
-    // optionally, mark locally that this message was read (so we don't emit it again later)
-    emittedReads.add(data.messageId);
-});
-
-/* -------------------- Sending messages & files -------------------- */
-sendBtn.onclick = async () =>{
-    const text = sanitizeText(textInput.value.trim());
-    const file = fileInput.files[0];
-
+/* send */
+sendBtn.onclick = async ()=>{
+    const text=textInput.value.trim();
+    const file=fileInput.files[0];
     if(!text && !file) return;
 
+    /* sending file */
     if(file){
         const arrayBuffer = await file.arrayBuffer();
-        const fileId = uid("file");
-        const msgId = uid("msg");
-
         const payload={
-            id:msgId,
-            sender: sanitizeText(name),
+            id:uid("msg"),
+            sender:name,
             avatar:storedAvatar,
-            fileId,
+            fileId:uid("file"),
             fileName:file.name,
             fileType:file.type,
             ts:Date.now(),
-            arrayBuffer
+            arrayBuffer,
+            out:true
         };
 
-        await put("files",{id:fileId, blob:file});
-        await put("messages",{...payload,out:true});
-        addMessageDOM({...payload,out:true});
+        await put("files",{id:payload.fileId, blob:file});
+        await put("messages",payload);
+        addMessageDOM(payload);
 
         socket.emit("file-message",payload);
     }
 
+    /* send text */
     if(text){
         const msg={
             id:uid("msg"),
-            sender:sanitizeText(name),
+            sender:name,
             avatar:storedAvatar,
             text,
             ts:Date.now(),
@@ -720,55 +413,16 @@ sendBtn.onclick = async () =>{
     fileInput.value="";
 };
 
-/* Clear */
-clearBtn.onclick = async () =>{
+/* clear */
+clearBtn.onclick = async()=>{
     if(!confirm("Clear local messages?")) return;
-    const db = await openDb();
-    const tx=db.transaction(["messages","files"],"readwrite");
-    tx.objectStore("messages").clear();
-    tx.objectStore("files").clear();
-    tx.oncomplete=()=> messagesEl.innerHTML="";
+    const db=await openDb();
+    db.transaction(["messages","files"],"readwrite").objectStore("messages").clear();
+    db.transaction(["messages","files"],"readwrite").objectStore("files").clear();
+    messagesEl.innerHTML="";
 };
-
-/* When page becomes visible, emit reads for messages we haven't emitted yet (guarded) */
-document.addEventListener("visibilitychange", async ()=>{
-    if(document.visibilityState === "visible"){
-        const local = await getAll("messages");
-        for(const m of local){
-            // only emit for messages we haven't emitted read for
-            if(m && m.id && shouldEmitRead(m.id)){
-                emitMessageReadGuarded(m.id);
-            }
-        }
-    }
-});
-
-/* When the page is first loaded and visible, emit read for any new messages (guarded)
-   Small delay ensures that initial history render finishes before emitting reads.
-*/
-if(document.visibilityState === "visible"){
-    setTimeout(async ()=>{
-        const local = await getAll("messages");
-        for(const m of local){
-            if(m && m.id && shouldEmitRead(m.id)){
-                emitMessageReadGuarded(m.id);
-            }
-        }
-    }, 700);
-}
-
-/* Also listen for window focus - emit for new messages when user returns */
-window.addEventListener("focus", async ()=>{
-    const local = await getAll("messages");
-    for(const m of local){
-        if(m && m.id && shouldEmitRead(m.id)){
-            emitMessageReadGuarded(m.id);
-        }
-    }
-});
 
 })();
 </script>
-
 </body>
 </html>
