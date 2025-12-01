@@ -17,14 +17,16 @@ const PORT = process.env.PORT || 3000;
 /* socketId → {name, avatar} */
 let users = {};
 
-/* in-memory messages array (server lifetime only).
-   This allows clients who reconnect while the server runs to fetch messages they missed.
-   We keep a cap to avoid memory blow-up.
-*/
+/* in-memory messages array (server lifetime only). Keep cap to avoid blow-up */
 const MESSAGES = [];
 const MESSAGES_MAX = 2000;
 
-// sanitize text to remove control chars (prevents replacement char �)
+// read receipt dedupe store: key -> timestamp
+// key format: `${messageId}|${reader}`
+const READ_DEDUPE = new Map();
+const READ_DEDUPE_TTL_MS = 30 * 1000; // ignore duplicate read receipts for 30s
+
+// sanitize helper
 function sanitize(s){
     if(!s || typeof s !== "string") return s || "";
     return s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
@@ -34,12 +36,20 @@ function broadcastUsers() {
     io.emit("users-list", users);
 }
 
+// cleanup old entries in READ_DEDUPE periodically
+setInterval(() => {
+    const now = Date.now();
+    for(const [k, t] of READ_DEDUPE.entries()){
+        if(now - t > READ_DEDUPE_TTL_MS) READ_DEDUPE.delete(k);
+    }
+}, 10 * 1000);
+
 io.on("connection", socket => {
     console.log("connected:", socket.id);
 
-    // send current users and in-memory history to the connecting client
+    // send current users and history (server memory) to the new client
     socket.emit("users-list", users);
-    socket.emit("history", MESSAGES.slice()); // shallow copy
+    socket.emit("history", MESSAGES.slice());
 
     /* JOIN */
     socket.on("join", ({ name, avatar }) => {
@@ -81,28 +91,27 @@ io.on("connection", socket => {
 
     /* TEXT MESSAGE */
     socket.on("chat-message", msg => {
-        // sanitize
-        if(msg){
-            msg.sender = sanitize(msg.sender);
-            msg.text = sanitize(msg.text);
-            msg.ts = msg.ts || Date.now();
-            // store in memory
-            MESSAGES.push(msg);
-            if(MESSAGES.length > MESSAGES_MAX) MESSAGES.shift();
-            // forward to others
-            socket.broadcast.emit("chat-message", msg);
-        }
+        if(!msg) return;
+        msg.sender = sanitize(msg.sender);
+        msg.text = sanitize(msg.text);
+        msg.ts = msg.ts || Date.now();
+
+        // store in memory (lightweight)
+        MESSAGES.push(msg);
+        if(MESSAGES.length > MESSAGES_MAX) MESSAGES.shift();
+
+        // forward
+        socket.broadcast.emit("chat-message", msg);
     });
 
     /* FILE MESSAGE */
     socket.on("file-message", payload => {
         if(!payload) return;
-        // sanitize sender & filename
         payload.sender = sanitize(payload.sender);
         payload.fileName = sanitize(payload.fileName);
         payload.ts = payload.ts || Date.now();
 
-        // store a lightweight message record in memory (not the binary)
+        // store a lightweight record (not the binary)
         const msgRec = {
             id: payload.id,
             sender: payload.sender,
@@ -115,18 +124,36 @@ io.on("connection", socket => {
         MESSAGES.push(msgRec);
         if(MESSAGES.length > MESSAGES_MAX) MESSAGES.shift();
 
-        // forward the entire payload (including binary arrayBuffer) to other clients
+        // forward entire payload (socket.io will handle binary / arraybuffer)
         socket.broadcast.emit("file-message", payload);
     });
 
     /* READ RECEIPTS */
     socket.on("message-read", data => {
+        if(!data || !data.messageId) return;
         // sanitize
-        if(data){
-            data.reader = sanitize(data.reader);
-            data.ts = data.ts || Date.now();
-            socket.broadcast.emit("message-read", data);
+        const reader = sanitize(data.reader || "Someone");
+        const messageId = String(data.messageId);
+        const key = `${messageId}|${reader}`;
+
+        const now = Date.now();
+        const last = READ_DEDUPE.get(key) || 0;
+        // if we've seen the same reader/message within TTL, ignore
+        if(now - last < READ_DEDUPE_TTL_MS){
+            return;
         }
+        // store timestamp and broadcast
+        READ_DEDUPE.set(key, now);
+
+        const out = {
+            messageId,
+            reader,
+            avatar: data.avatar || null,
+            ts: data.ts || now
+        };
+
+        // broadcast to others (not back to sender)
+        socket.broadcast.emit("message-read", out);
     });
 
     /* DISCONNECT */
