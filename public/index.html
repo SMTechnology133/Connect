@@ -1,9 +1,9 @@
-<!doctype html>  
-<html lang="en">  
-<head>  
-<meta charset="utf-8" />  
-<meta name="viewport" content="width=device-width,initial-scale=1" />  
-<title>CONNECT A lightweight group chat application</title>  
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CONNECT A lightweight group chat application</title>
 <meta name="theme-color" content="teal"/>   
 
 <style>  
@@ -35,6 +35,7 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 .msg{
 	max-width:70%;
 	padding:10px;
+	margin:4px;
 	border-radius:10px;
 	background:gray;
 	border:1px solid orange;
@@ -58,6 +59,9 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 @media(max-width:720px){.app{grid-template-columns:1fr;height:100vh;border-radius:0}.right{display:none}}
 .file-link{display:inline-block;margin-top:6px;color:var(--accent);text-decoration:underline;cursor:pointer}
 .picturee{width:30px;height:30px;border:1px solid orange;border-radius:20px;padding:1px;margin-top:6px;}
+.file-name {font-size:13px;color:var(--muted);margin-top:6px;word-break:break-all;}
+.system-row{display:flex;gap:8px;align-items:center;}
+.system-text{font-size:13px;color:var(--muted);margin-left:6px;}
 </style>  
 </head>  
 
@@ -109,7 +113,7 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
         <ul id="users" class="users-list"></ul>
         <hr>
         <div class="small">Typing</div>
-        <div id="typing" class="small">—</div>
+        <div id="typing" class="small"></div>
         <footer style="margin-top:auto" class="small">
             Files stored in browser (IndexedDB). Server relays messages only.
         </footer>
@@ -128,7 +132,7 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
             <ul id="m_users" class="users-list"></ul>
             <hr>
             <div class="small">Typing</div>
-            <div id="m_typing" class="small">—</div>
+            <div id="m_typing" class="small"></div>
         </div>
     </div>
 </div>
@@ -200,30 +204,39 @@ avatarInput.onchange = e =>{
     if(!f) return;
     const reader = new FileReader();
     reader.onload = ()=>{
-        localStorage.setItem("profile_pic_data", reader.result);
-        setAvatar(reader.result);
-        socket.emit("update-profile",{name, avatar:reader.result});
+        const dataURL = reader.result;
+        localStorage.setItem("profile_pic_data", dataURL);
+        storedAvatar = dataURL; // keep local var up to date
+        setAvatar(dataURL);
+        if(socket && socket.connected){
+            socket.emit("update-profile",{name, avatar:dataURL});
+        }
     };
     reader.readAsDataURL(f);
 };
 
 /* Load profile */
-let name = localStorage.getItem("enhanced_chat_name") || ("User"+Math.floor(Math.random()*9999));
+let name = localStorage.getItem("enhanced_chat_name") || ("User "+Math.floor(Math.random()*9999));
 let storedAvatar = localStorage.getItem("profile_pic_data") || null;
 
 nameInput.value = name;
 setAvatar(storedAvatar);
 
-/* FIXED: Set Name button */
+/* FIXED: Set Name button: set avatar as well and emit profile update */
 setNameBtn.onclick = () =>{
     name = nameInput.value.trim() || name;
     localStorage.setItem("enhanced_chat_name", name);
 
-    if(!storedAvatar){
+    // refresh avatar shown (use storedAvatar if any)
+    if(storedAvatar){
+        setAvatar(storedAvatar);
+    } else {
         setAvatar(null);
     }
 
-    socket.emit("update-profile",{name, avatar: storedAvatar});
+    if(socket && socket.connected){
+        socket.emit("update-profile",{name, avatar: storedAvatar});
+    }
 };
 
 /* IndexedDB */
@@ -335,13 +348,13 @@ socket.on("users-list", data=>{
 socket.on("user-joined", data=>{
     users[data.id] = data.user;
     renderUsers();
-    addSystem(`${data.user.name} joined`);
+    addSystem(`${data.user.name} joined`, data.user);
 });
 
 socket.on("user-left", data=>{
     delete users[data.id];
     renderUsers();
-    addSystem(`${data.user.name} left`);
+    addSystem(`${data.user.name} left`, data.user);
 });
 
 socket.on("profile-updated",({id,user})=>{
@@ -374,8 +387,13 @@ socket.on("chat-message", async msg=>{
 
 /* Receive file + PREVIEW */
 socket.on("file-message", async payload=>{
-    const blob = new Blob([payload.arrayBuffer], {type:payload.fileType});
-    await put("files",{id:payload.fileId,blob});
+    // payload.arrayBuffer is expected; create Blob from it
+    try {
+        const blob = new Blob([payload.arrayBuffer], {type:payload.fileType || "application/octet-stream"});
+        await put("files",{id:payload.fileId,blob});
+    } catch (err){
+        console.warn("Error creating/storing blob:", err);
+    }
 
     const msg={
         id:payload.id,
@@ -392,20 +410,26 @@ socket.on("file-message", async payload=>{
 });
 
 /* PREVIEW HANDLER */
-function createPreview(fileType, blobURL){
-    if(fileType.startsWith("image/")){
-        return `<img src="${blobURL}" style="max-width:200px;border-radius:6px;margin-top:6px;">`;
+function createPreview(fileName, fileType, blobURL){
+    // fileName shown above preview
+    let nameHTML = `<div class="file-name"></div>`; // replaced dynamically to avoid innerHTML injection
+
+    if(fileType && fileType.startsWith("image/")){
+        return { html: `<img src="${blobURL}" style="max-width:200px;border-radius:6px;margin-top:6px;">`, name: fileName };
     }
-    if(fileType.startsWith("video/")){
-        return `<video src="${blobURL}" controls style="max-width:200px;margin-top:6px;"></video>`;
+    if(fileType && fileType.startsWith("video/")){
+        // use <source> for cross-browser compatibility
+        return { html: `<video controls playsinline preload="metadata" style="max-width:200px;margin-top:6px;"><source src="${blobURL}" type="${fileType}">Your browser does not support the video tag.</video>`, name: fileName };
     }
-    if(fileType.startsWith("audio/")){
-        return `<audio controls src="${blobURL}" style="margin-top:6px;"></audio>`;
+    if(fileType && fileType.startsWith("audio/")){
+        return { html: `<audio controls src="${blobURL}" style="margin-top:6px;"></audio>`, name: fileName };
     }
     if(fileType === "application/pdf"){
-        return `<iframe src="${blobURL}" style="width:200px;height:200px;border:1px solid orange;margin-top:6px;"></iframe>`;
+        return { html: `<iframe src="${blobURL}" style="width:200px;height:200px;border:1px solid orange;margin-top:6px;"></iframe>`, name: fileName };
     }
-    return `<span class="file-link"> ${fileType}</span>`;
+
+    // fallback: show download link with file type and name
+    return { html: `<a class="file-link" href="${blobURL}" download="${encodeURIComponent(fileName || "file")}">Download ${fileName || "file"}</a>`, name: fileName };
 }
 
 /* DOM messages */
@@ -422,7 +446,12 @@ async function addMessageDOM(m){
         av.style.background=colorFrom(m.sender);
     }
 
-    box.append(av);
+    // message body container
+    const contentWrap = document.createElement("div");
+    contentWrap.style.display = "flex";
+    contentWrap.style.flexDirection = "column";
+    contentWrap.style.marginLeft = "8px";
+    contentWrap.style.maxWidth = "100%";
 
     const meta=document.createElement("div");
     meta.className="meta small";
@@ -430,32 +459,102 @@ async function addMessageDOM(m){
 
     const body=document.createElement("div");
     body.style.marginTop="6px";
+    body.style.wordBreak = "break-word";
 
+    // text message
     if(m.text){
-        body.textContent = m.text;
+        // preserve plain text only
+        const p = document.createElement("div");
+        p.textContent = m.text;
+        body.appendChild(p);
     }
 
+    // file message preview
     if(m.fileId){
         const blob = await getFile(m.fileId);
         if(blob){
             const url = URL.createObjectURL(blob);
-            body.innerHTML = createPreview(m.fileType, url);
+            const preview = createPreview(m.fileName, m.fileType, url);
+
+            // insert filename (safe) and download link
+            const nameDiv = document.createElement("div");
+            nameDiv.className = "file-name";
+            const a = document.createElement("a");
+            a.textContent = m.fileName || "file";
+            a.href = url;
+            a.download = m.fileName || "file";
+            a.className = "file-link";
+            nameDiv.appendChild(a);
+
+            // append preview html
+            const wrap = document.createElement("div");
+            wrap.innerHTML = preview.html;
+
+            body.appendChild(nameDiv);
+            body.appendChild(wrap);
+
+            // release object URL when element removed/unloaded
+            // revoke after some time to avoid premature invalidation in some browsers
+            setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(e){} }, 60 * 1000);
+        } else {
+            // no blob stored locally - show a placeholder
+            const noDiv = document.createElement("div");
+            noDiv.textContent = m.fileName ? `File: ${m.fileName}` : "File received";
+            body.appendChild(noDiv);
         }
     }
 
-    box.append(meta,body);
+    // combine parts: avatar + content
+    box.append(av);
+
+    contentWrap.appendChild(meta);
+    contentWrap.appendChild(body);
+    box.append(contentWrap);
+
     messagesEl.append(box);
 
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-function addSystem(t){
-    addMessageDOM({
-        id:uid("sys"),
-        sender:"System",
-        text:t,
-        ts:Date.now()
-    });
+/* System message that can include avatar when user joins/leaves */
+function addSystem(text, user){
+    const box=document.createElement("div");
+    box.className="msg in"; // system messages appear as incoming style
+
+    // create small avatar if user provided
+    const av=document.createElement("div");
+    av.className="avatar";
+    if(user && user.avatar){
+        av.innerHTML = `<img src="${user.avatar}">`;
+    } else if (user && user.name){
+        av.textContent = initialsFrom(user.name);
+        av.style.background = colorFrom(user.name);
+    } else {
+        av.textContent = "S";
+        av.style.background = "#444";
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.style.display = "flex";
+    wrapper.style.flexDirection = "column";
+    wrapper.style.marginLeft = "8px";
+
+    const meta = document.createElement("div");
+    meta.className = "meta small";
+    meta.textContent = user && user.name ? `${user.name} · ${new Date().toLocaleTimeString()}` : `System · ${new Date().toLocaleTimeString()}`;
+
+    const t = document.createElement("div");
+    t.className = "system-text";
+    t.textContent = text;
+
+    wrapper.appendChild(meta);
+    wrapper.appendChild(t);
+
+    box.appendChild(av);
+    box.appendChild(wrapper);
+
+    messagesEl.appendChild(box);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 /* send */
@@ -482,6 +581,7 @@ sendBtn.onclick = async () =>{
             arrayBuffer
         };
 
+        // store file locally and message locally then emit
         await put("files",{id:fileId, blob:file});
         await put("messages",{...payload,out:true});
         addMessageDOM({...payload,out:true});
