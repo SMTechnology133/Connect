@@ -14,17 +14,23 @@ app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
 
-let users = {};                     // socket.id → { name, avatar }
-let readReceiptHistory = {};        // msgId → Set of readers
+/* socketId → {name, avatar} */
+let users = {};
+
+function broadcastUsers() {
+    io.emit("users-list", users);
+}
 
 io.on("connection", socket => {
     console.log("connected:", socket.id);
 
+    // send current users to the new client
     socket.emit("users-list", users);
 
     /* JOIN */
     socket.on("join", ({ name, avatar }) => {
-        socket.data.user = { name, avatar };
+        const safeName = (name && typeof name === "string") ? name : `User-${Math.floor(Math.random()*10000)}`;
+        socket.data.user = { name: safeName, avatar: avatar || null };
         users[socket.id] = socket.data.user;
 
         socket.broadcast.emit("user-joined", {
@@ -32,12 +38,14 @@ io.on("connection", socket => {
             user: socket.data.user
         });
 
-        io.emit("users-list", users);
+        broadcastUsers();
+        console.log(`join: ${socket.id} -> ${safeName}`);
     });
 
     /* UPDATE PROFILE */
     socket.on("update-profile", ({ name, avatar }) => {
-        socket.data.user = { name, avatar };
+        const safeName = (name && typeof name === "string") ? name : socket.data.user?.name || `User-${Math.floor(Math.random()*10000)}`;
+        socket.data.user = { name: safeName, avatar: avatar || null };
         users[socket.id] = socket.data.user;
 
         io.emit("profile-updated", {
@@ -45,50 +53,48 @@ io.on("connection", socket => {
             user: socket.data.user
         });
 
-        io.emit("users-list", users);
+        broadcastUsers();
     });
 
     /* TYPING */
-    socket.on("typing", () =>
-        socket.broadcast.emit("typing", { user: socket.data.user })
-    );
-    socket.on("stop-typing", () =>
-        socket.broadcast.emit("stop-typing")
-    );
+    socket.on("typing", () => {
+        if(socket.data.user) socket.broadcast.emit("typing", { user: socket.data.user });
+    });
+
+    socket.on("stop-typing", () => {
+        socket.broadcast.emit("stop-typing");
+    });
 
     /* TEXT MESSAGE */
     socket.on("chat-message", msg => {
+        // don't trust client timestamps fully, but forward message
         socket.broadcast.emit("chat-message", msg);
     });
 
     /* FILE MESSAGE */
     socket.on("file-message", payload => {
+        // socket.io handles binary payloads; just forward
         socket.broadcast.emit("file-message", payload);
     });
 
-    /* READ RECEIPTS (FIXED LOOP & SPAM) */
-    socket.on("message-read", ({ id, reader }) => {
-        if(!readReceiptHistory[id])
-            readReceiptHistory[id] = new Set();
-
-        if(!readReceiptHistory[id].has(reader)){
-            readReceiptHistory[id].add(reader);
-            socket.broadcast.emit("message-read", { id, reader });
-        }
+    /* READ RECEIPTS */
+    socket.on("message-read", data => {
+        socket.broadcast.emit("message-read", data);
     });
 
     /* DISCONNECT */
     socket.on("disconnect", () => {
         socket.broadcast.emit("user-left", {
             id: socket.id,
-            user: socket.data.user || { name:"Unknown" }
+            user: socket.data.user || { name: "Unknown", avatar: null }
         });
 
         delete users[socket.id];
-        io.emit("users-list", users);
+        broadcastUsers();
+        console.log("disconnected:", socket.id);
     });
 });
 
 server.listen(PORT, () =>
-    console.log("Server running on port", PORT)
+    console.log("Server running on", PORT)
 );
