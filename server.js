@@ -1,100 +1,127 @@
+// =========================
+//  CONNECT CHAT SERVER
+// =========================
+
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    maxHttpBufferSize: 1e8,
+    maxHttpBufferSize: 5e7,       // allow large files
     cors: { origin: "*" }
 });
 
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public"))); // your index.html is inside /public
 
-const PORT = process.env.PORT || 3000;
+// =========================
+//   ACTIVE USERS
+// =========================
+const users = {}; // socketId → { name, avatar }
 
-/* socketId → {name, avatar} */
-let users = {};
+// =========================
+//   SOCKET CONNECTION
+// =========================
+io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
 
-function broadcastUsers() {
-    io.emit("users-list", users);
-}
+    // Immediately send current users list (sender included)
+    io.to(socket.id).emit("users-list", users);
 
-io.on("connection", socket => {
-    console.log("connected:", socket.id);
+    // -----------------------
+    // JOIN
+    // -----------------------
+    socket.on("join", (user) => {
+        users[socket.id] = {
+            name: user.name || "User",
+            avatar: user.avatar || null
+        };
 
-    // send current users to the new client
-    socket.emit("users-list", users);
-
-    /* JOIN */
-    socket.on("join", ({ name, avatar }) => {
-        const safeName = (name && typeof name === "string") ? name : `User-${Math.floor(Math.random()*10000)}`;
-        socket.data.user = { name: safeName, avatar: avatar || null };
-        users[socket.id] = socket.data.user;
-
+        // Notify others
         socket.broadcast.emit("user-joined", {
             id: socket.id,
-            user: socket.data.user
+            user: users[socket.id]
         });
 
-        broadcastUsers();
-        console.log(`join: ${socket.id} -> ${safeName}`);
+        // Update whole list for all
+        io.emit("users-list", users);
     });
 
-    /* UPDATE PROFILE */
-    socket.on("update-profile", ({ name, avatar }) => {
-        const safeName = (name && typeof name === "string") ? name : socket.data.user?.name || `User-${Math.floor(Math.random()*10000)}`;
-        socket.data.user = { name: safeName, avatar: avatar || null };
-        users[socket.id] = socket.data.user;
+    // -----------------------
+    // PROFILE UPDATE
+    // -----------------------
+    socket.on("update-profile", (data) => {
+        if (!users[socket.id]) return;
+
+        users[socket.id].name = data.name || users[socket.id].name;
+        users[socket.id].avatar = data.avatar || null;
 
         io.emit("profile-updated", {
             id: socket.id,
-            user: socket.data.user
+            user: users[socket.id]
         });
-
-        broadcastUsers();
     });
 
-    /* TYPING */
+    // -----------------------
+    // TEXT MESSAGE
+    // -----------------------
+    socket.on("chat-message", (msg) => {
+        // Broadcast to everyone except sender
+        socket.broadcast.emit("chat-message", msg);
+    });
+
+    // -----------------------
+    // FILE MESSAGE
+    // -----------------------
+    socket.on("file-message", (payload) => {
+        // Broadcast to everyone except uploader
+        socket.broadcast.emit("file-message", payload);
+    });
+
+    // -----------------------
+    // TYPING
+    // -----------------------
     socket.on("typing", () => {
-        if(socket.data.user) socket.broadcast.emit("typing", { user: socket.data.user });
+        if (!users[socket.id]) return;
+        socket.broadcast.emit("typing", { user: users[socket.id] });
     });
 
     socket.on("stop-typing", () => {
         socket.broadcast.emit("stop-typing");
     });
 
-    /* TEXT MESSAGE */
-    socket.on("chat-message", msg => {
-        // don't trust client timestamps fully, but forward message
-        socket.broadcast.emit("chat-message", msg);
-    });
-
-    /* FILE MESSAGE */
-    socket.on("file-message", payload => {
-        // socket.io handles binary payloads; just forward
-        socket.broadcast.emit("file-message", payload);
-    });
-
-    /* READ RECEIPTS */
-    socket.on("message-read", data => {
+    // -----------------------
+    // READ RECEIPTS
+    // -----------------------
+    socket.on("message-read", (data) => {
+        // data = { msgId, reader, ts }
+        // Forward ONLY to others
         socket.broadcast.emit("message-read", data);
     });
 
-    /* DISCONNECT */
+    // -----------------------
+    // DISCONNECT
+    // -----------------------
     socket.on("disconnect", () => {
-        socket.broadcast.emit("user-left", {
-            id: socket.id,
-            user: socket.data.user || { name: "Unknown", avatar: null }
-        });
-
-        delete users[socket.id];
-        broadcastUsers();
-        console.log("disconnected:", socket.id);
+        if (users[socket.id]) {
+            io.emit("user-left", {
+                id: socket.id,
+                user: users[socket.id]
+            });
+            delete users[socket.id];
+            io.emit("users-list", users);
+        }
     });
 });
 
-server.listen(PORT, () =>
-    console.log("Server running on", PORT)
-);
+// =========================
+//   START SERVER
+// =========================
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+    console.log("CONNECT chat server running on port", PORT);
+});
