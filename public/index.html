@@ -140,7 +140,7 @@ button{background:orange;color:teal;border:1px solid gray;padding:6px 8px;border
 <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
 
 <script>
-/* FIXED FULL JS */
+/* FIXED FULL JS (patch-only, preserves structure & CSS) */
 
 (async function(){
 
@@ -156,6 +156,13 @@ const colorFrom = name=>{
     let h=0; for(let c of name) h+=c.charCodeAt(0);
     return colors[h%colors.length];
 };
+
+// sanitize to remove control characters that cause the replacement char ()
+function sanitizeText(s){
+    if(!s || typeof s !== "string") return s || "";
+    // remove control chars (U+0000 - U+001F, U+007F - U+009F)
+    return s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
+}
 
 /* DOM refs */
 const messagesEl = document.getElementById('messages');
@@ -209,14 +216,15 @@ avatarInput.onchange = e =>{
         storedAvatar = dataURL; // keep local var up to date
         setAvatar(dataURL);
         if(socket && socket.connected){
-            socket.emit("update-profile",{name, avatar:dataURL});
+            // sanitize name before sending
+            socket.emit("update-profile",{name: sanitizeText(name), avatar:dataURL});
         }
     };
     reader.readAsDataURL(f);
 };
 
 /* Load profile */
-let name = localStorage.getItem("enhanced_chat_name") || ("User "+Math.floor(Math.random()*9999));
+let name = sanitizeText(localStorage.getItem("enhanced_chat_name")) || ("User "+Math.floor(Math.random()*9999));
 let storedAvatar = localStorage.getItem("profile_pic_data") || null;
 
 nameInput.value = name;
@@ -224,7 +232,7 @@ setAvatar(storedAvatar);
 
 /* FIXED: Set Name button: set avatar as well and emit profile update */
 setNameBtn.onclick = () =>{
-    name = nameInput.value.trim() || name;
+    name = sanitizeText(nameInput.value.trim()) || name;
     localStorage.setItem("enhanced_chat_name", name);
 
     // refresh avatar shown (use storedAvatar if any)
@@ -235,7 +243,7 @@ setNameBtn.onclick = () =>{
     }
 
     if(socket && socket.connected){
-        socket.emit("update-profile",{name, avatar: storedAvatar});
+        socket.emit("update-profile",{name: name, avatar: storedAvatar});
     }
 };
 
@@ -289,7 +297,7 @@ async function getFile(id){
     });
 }
 
-/* load history */
+/* load history from local IndexedDB */
 const history = await getAll("messages");
 history.sort((a,b)=>a.ts-b.ts);
 history.forEach(m=> addMessageDOM(m));
@@ -297,10 +305,23 @@ history.forEach(m=> addMessageDOM(m));
 /* socket io */
 const socket = io();
 
+/* Local helper to auto-mark a message read if visible */
+async function markMessageReadIfVisible(msgId){
+    if(document.visibilityState === "visible"){
+        socket.emit("message-read", {
+            messageId: msgId,
+            reader: sanitizeText(name),
+            avatar: storedAvatar || null,
+            ts: Date.now()
+        });
+    }
+}
+
 socket.on("connect",()=>{
     connStatus.textContent="Connected";
     m_connStatus.textContent="Connected";
-    socket.emit("join",{name,avatar:storedAvatar});
+    // send join and ask server for history (server will send 'history' automatically on connect)
+    socket.emit("join",{name: sanitizeText(name),avatar:storedAvatar});
 });
 
 socket.on("disconnect",()=>{
@@ -340,24 +361,39 @@ function renderUsers(){
     }
 }
 
+/* server-sent current user list */
 socket.on("users-list", data=>{
-    users = data;
+    // sanitize server data defensively
+    for(const k in data){
+        if(data[k] && data[k].name) data[k].name = sanitizeText(data[k].name);
+    }
+    users = data || {};
     renderUsers();
 });
 
+/* user joined */
 socket.on("user-joined", data=>{
-    users[data.id] = data.user;
-    renderUsers();
-    addSystem(`${data.user.name} joined`, data.user);
+    if(data && data.user){
+        data.user.name = sanitizeText(data.user.name);
+        users[data.id] = data.user;
+        renderUsers();
+        addSystem(`${data.user.name} joined`, data.user);
+    }
 });
 
+/* user left */
 socket.on("user-left", data=>{
-    delete users[data.id];
-    renderUsers();
-    addSystem(`${data.user.name} left`, data.user);
+    if(data && data.user){
+        data.user.name = sanitizeText(data.user.name);
+        delete users[data.id];
+        renderUsers();
+        addSystem(`${data.user.name} left`, data.user);
+    }
 });
 
+/* profile updated */
 socket.on("profile-updated",({id,user})=>{
+    if(user && user.name) user.name = sanitizeText(user.name);
     users[id]=user;
     renderUsers();
 });
@@ -371,6 +407,7 @@ textInput.oninput=()=>{
 };
 
 socket.on("typing",({user})=>{
+    if(user && user.name) user.name = sanitizeText(user.name);
     typingEl.textContent=`${user.name} is typing...`;
     m_typing.textContent=typingEl.textContent;
 });
@@ -379,10 +416,36 @@ socket.on("stop-typing",()=>{
     m_typing.textContent="—";
 });
 
+/* server history: when connecting the server will emit 'history' — a list of messages in memory (only server lifetime) */
+socket.on("history", async messages=>{
+    if(!Array.isArray(messages)) return;
+    // store server messages in local IndexedDB and render (avoid duplicating existing)
+    for(const msg of messages){
+        // sanitize sender/name/text
+        if(msg.sender) msg.sender = sanitizeText(msg.sender);
+        if(msg.text) msg.text = sanitizeText(msg.text);
+
+        // don't duplicate: attempt to store; put will replace existing by id
+        await put("messages", msg);
+    }
+    // reload local messages and render again (simple approach)
+    const local = await getAll("messages");
+    local.sort((a,b)=>a.ts-b.ts);
+    messagesEl.innerHTML = "";
+    local.forEach(m=> addMessageDOM(m));
+});
+
 /* Receive text */
 socket.on("chat-message", async msg=>{
+    // sanitize
+    if(msg.sender) msg.sender = sanitizeText(msg.sender);
+    if(msg.text) msg.text = sanitizeText(msg.text);
+
     await put("messages", msg);
     addMessageDOM(msg);
+
+    // auto-mark read if user is looking at chat
+    markMessageReadIfVisible(msg.id);
 });
 
 /* Receive file + PREVIEW */
@@ -397,7 +460,7 @@ socket.on("file-message", async payload=>{
 
     const msg={
         id:payload.id,
-        sender:payload.sender,
+        sender:sanitizeText(payload.sender),
         avatar:payload.avatar,
         fileId:payload.fileId,
         fileName:payload.fileName,
@@ -407,18 +470,17 @@ socket.on("file-message", async payload=>{
 
     await put("messages", msg);
     addMessageDOM(msg);
+
+    // auto mark read if visible
+    markMessageReadIfVisible(msg.id);
 });
 
 /* PREVIEW HANDLER */
 function createPreview(fileName, fileType, blobURL){
-    // fileName shown above preview
-    let nameHTML = `<div class="file-name"></div>`; // replaced dynamically to avoid innerHTML injection
-
     if(fileType && fileType.startsWith("image/")){
         return { html: `<img src="${blobURL}" style="max-width:200px;border-radius:6px;margin-top:6px;">`, name: fileName };
     }
     if(fileType && fileType.startsWith("video/")){
-        // use <source> for cross-browser compatibility
         return { html: `<video controls playsinline preload="metadata" style="max-width:200px;margin-top:6px;"><source src="${blobURL}" type="${fileType}">Your browser does not support the video tag.</video>`, name: fileName };
     }
     if(fileType && fileType.startsWith("audio/")){
@@ -428,14 +490,17 @@ function createPreview(fileName, fileType, blobURL){
         return { html: `<iframe src="${blobURL}" style="width:200px;height:200px;border:1px solid orange;margin-top:6px;"></iframe>`, name: fileName };
     }
 
-    // fallback: show download link with file type and name
     return { html: `<a class="file-link" href="${blobURL}" download="${encodeURIComponent(fileName || "file")}">Download ${fileName || "file"}</a>`, name: fileName };
 }
 
 /* DOM messages */
 async function addMessageDOM(m){
+    // avoid rendering twice: check if message already exists in DOM by id data-attr
+    if(document.querySelector(`[data-msgid="${m.id}"]`)) return;
+
     const box=document.createElement("div");
     box.className="msg "+(m.out ? "out":"in");
+    box.setAttribute("data-msgid", m.id);
 
     const av=document.createElement("div");
     av.className="avatar";
@@ -463,7 +528,6 @@ async function addMessageDOM(m){
 
     // text message
     if(m.text){
-        // preserve plain text only
         const p = document.createElement("div");
         p.textContent = m.text;
         body.appendChild(p);
@@ -476,7 +540,7 @@ async function addMessageDOM(m){
             const url = URL.createObjectURL(blob);
             const preview = createPreview(m.fileName, m.fileType, url);
 
-            // insert filename (safe) and download link
+            // filename + download anchor
             const nameDiv = document.createElement("div");
             nameDiv.className = "file-name";
             const a = document.createElement("a");
@@ -486,18 +550,16 @@ async function addMessageDOM(m){
             a.className = "file-link";
             nameDiv.appendChild(a);
 
-            // append preview html
+            // preview container
             const wrap = document.createElement("div");
             wrap.innerHTML = preview.html;
 
             body.appendChild(nameDiv);
             body.appendChild(wrap);
 
-            // release object URL when element removed/unloaded
-            // revoke after some time to avoid premature invalidation in some browsers
+            // revoke object URL after a bit (to avoid early invalidation on some browsers)
             setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(e){} }, 60 * 1000);
         } else {
-            // no blob stored locally - show a placeholder
             const noDiv = document.createElement("div");
             noDiv.textContent = m.fileName ? `File: ${m.fileName}` : "File received";
             body.appendChild(noDiv);
@@ -511,12 +573,25 @@ async function addMessageDOM(m){
     contentWrap.appendChild(body);
     box.append(contentWrap);
 
+    // clicking a message will emit a read receipt (manual)
+    box.onclick = () => {
+        socket.emit("message-read", {
+            messageId: m.id,
+            reader: sanitizeText(name),
+            avatar: storedAvatar || null,
+            ts: Date.now()
+        });
+        // optional visual feedback: briefly highlight
+        box.style.boxShadow = "0 0 0 2px rgba(255,255,255,0.08) inset";
+        setTimeout(()=> box.style.boxShadow = "", 700);
+    };
+
     messagesEl.append(box);
 
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-/* System message that can include avatar when user joins/leaves */
+/* System message that can include avatar when user joins/leaves/read */
 function addSystem(text, user){
     const box=document.createElement("div");
     box.className="msg in"; // system messages appear as incoming style
@@ -557,10 +632,18 @@ function addSystem(text, user){
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+/* Handle incoming read receipts by showing a small system message */
+socket.on("message-read", data=>{
+    if(!data) return;
+    const reader = sanitizeText(data.reader || "Someone");
+    const avatar = data.avatar || null;
+    addSystem(`${reader} read a message`, { name: reader, avatar });
+});
+
 /* send */
 sendBtn.onclick = async () =>{
-    const text=textInput.value.trim();
-    const file=fileInput.files[0];
+    const text = sanitizeText(textInput.value.trim());
+    const file = fileInput.files[0];
 
     if(!text && !file) return;
 
@@ -572,8 +655,8 @@ sendBtn.onclick = async () =>{
 
         const payload={
             id:msgId,
-            sender:name,
-            avatar:storedAvatar,
+            sender: sanitizeText(name),
+            avatar: storedAvatar,
             fileId,
             fileName:file.name,
             fileType:file.type,
@@ -593,7 +676,7 @@ sendBtn.onclick = async () =>{
     if(text){
         const msg={
             id:uid("msg"),
-            sender:name,
+            sender:sanitizeText(name),
             avatar:storedAvatar,
             text,
             ts:Date.now(),
@@ -617,6 +700,22 @@ clearBtn.onclick = async () =>{
     tx.objectStore("files").clear();
     tx.oncomplete=()=> messagesEl.innerHTML="";
 };
+
+/* when page becomes visible, emit read for all messages we haven't read yet (simple approach) */
+document.addEventListener("visibilitychange", async ()=>{
+    if(document.visibilityState === "visible"){
+        // mark all messages in local DB as read by emitting message-read for each message id
+        const local = await getAll("messages");
+        for(const m of local){
+            socket.emit("message-read", {
+                messageId: m.id,
+                reader: sanitizeText(name),
+                avatar: storedAvatar || null,
+                ts: Date.now()
+            });
+        }
+    }
+});
 
 })();
 </script>
