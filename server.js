@@ -17,6 +17,19 @@ const PORT = process.env.PORT || 3000;
 /* socketId → {name, avatar} */
 let users = {};
 
+/* in-memory messages array (server lifetime only).
+   This allows clients who reconnect while the server runs to fetch messages they missed.
+   We keep a cap to avoid memory blow-up.
+*/
+const MESSAGES = [];
+const MESSAGES_MAX = 2000;
+
+// sanitize text to remove control chars (prevents replacement char �)
+function sanitize(s){
+    if(!s || typeof s !== "string") return s || "";
+    return s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
+}
+
 function broadcastUsers() {
     io.emit("users-list", users);
 }
@@ -24,12 +37,13 @@ function broadcastUsers() {
 io.on("connection", socket => {
     console.log("connected:", socket.id);
 
-    // send current users to the new client
+    // send current users and in-memory history to the connecting client
     socket.emit("users-list", users);
+    socket.emit("history", MESSAGES.slice()); // shallow copy
 
     /* JOIN */
     socket.on("join", ({ name, avatar }) => {
-        const safeName = (name && typeof name === "string") ? name : `User-${Math.floor(Math.random()*10000)}`;
+        const safeName = sanitize(name) || `User-${Math.floor(Math.random()*10000)}`;
         socket.data.user = { name: safeName, avatar: avatar || null };
         users[socket.id] = socket.data.user;
 
@@ -44,7 +58,7 @@ io.on("connection", socket => {
 
     /* UPDATE PROFILE */
     socket.on("update-profile", ({ name, avatar }) => {
-        const safeName = (name && typeof name === "string") ? name : socket.data.user?.name || `User-${Math.floor(Math.random()*10000)}`;
+        const safeName = sanitize(name) || socket.data.user?.name || `User-${Math.floor(Math.random()*10000)}`;
         socket.data.user = { name: safeName, avatar: avatar || null };
         users[socket.id] = socket.data.user;
 
@@ -67,19 +81,52 @@ io.on("connection", socket => {
 
     /* TEXT MESSAGE */
     socket.on("chat-message", msg => {
-        // don't trust client timestamps fully, but forward message
-        socket.broadcast.emit("chat-message", msg);
+        // sanitize
+        if(msg){
+            msg.sender = sanitize(msg.sender);
+            msg.text = sanitize(msg.text);
+            msg.ts = msg.ts || Date.now();
+            // store in memory
+            MESSAGES.push(msg);
+            if(MESSAGES.length > MESSAGES_MAX) MESSAGES.shift();
+            // forward to others
+            socket.broadcast.emit("chat-message", msg);
+        }
     });
 
     /* FILE MESSAGE */
     socket.on("file-message", payload => {
-        // socket.io handles binary payloads; just forward
+        if(!payload) return;
+        // sanitize sender & filename
+        payload.sender = sanitize(payload.sender);
+        payload.fileName = sanitize(payload.fileName);
+        payload.ts = payload.ts || Date.now();
+
+        // store a lightweight message record in memory (not the binary)
+        const msgRec = {
+            id: payload.id,
+            sender: payload.sender,
+            avatar: payload.avatar || null,
+            fileId: payload.fileId,
+            fileName: payload.fileName,
+            fileType: payload.fileType,
+            ts: payload.ts
+        };
+        MESSAGES.push(msgRec);
+        if(MESSAGES.length > MESSAGES_MAX) MESSAGES.shift();
+
+        // forward the entire payload (including binary arrayBuffer) to other clients
         socket.broadcast.emit("file-message", payload);
     });
 
     /* READ RECEIPTS */
     socket.on("message-read", data => {
-        socket.broadcast.emit("message-read", data);
+        // sanitize
+        if(data){
+            data.reader = sanitize(data.reader);
+            data.ts = data.ts || Date.now();
+            socket.broadcast.emit("message-read", data);
+        }
     });
 
     /* DISCONNECT */
