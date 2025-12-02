@@ -607,7 +607,7 @@ async function addMessageDOM(m, opts={dontObserve:false}){
   
     const meta=document.createElement("div");  
     meta.className="meta small";  
-    meta.textContent = `${m.sender}|${new Date(m.ts).toLocaleTimeString()}`;  
+    meta.textContent = `${m.sender} ${new Date(m.ts).toLocaleTimeString()}`;  
   
     const body=document.createElement("div");  
     body.style.marginTop="6px";  
@@ -704,10 +704,11 @@ function addSystem(text, user){
     wrapper.style.display = "flex";  
     wrapper.style.flexDirection = "column";  
     wrapper.style.marginLeft = "8px";  
+    wrapper.style.marginRight = "8px";  
   
     const meta = document.createElement("div");  
     meta.className = "meta small";  
-    meta.textContent = user && user.name ? `${user.name} · ${new Date().toLocaleTimeString()}` : `System · ${new Date().toLocaleTimeString()}`;  
+    meta.textContent = user && user.name ? `${user.name} ${new Date().toLocaleTimeString()}` : `System ${new Date().toLocaleTimeString()}`;  
   
     const t = document.createElement("div");  
     t.className = "system-text";  
