@@ -264,7 +264,7 @@ cursor:pointer;
             <div class="small">Connection</div>  
             <div id="m_connStatus" class="small">Connecting...</div>  
             <hr>  
-            <div class="small">People Online</div>  
+            <div class="small">Online</div>  
             <ul id="m_users" class="users-list"></ul>  
             <hr>  
             <div class="small">Typing</div>  
@@ -573,8 +573,8 @@ socket.on("typing",({user})=>{
     m_typing.textContent=typingEl.textContent;  
 });  
 socket.on("stop-typing",()=>{  
-    typingEl.textContent="�";  
-    m_typing.textContent="�";  
+    typingEl.textContent="";  
+    m_typing.textContent="";  
 });  
   
 /* Receive text */  
