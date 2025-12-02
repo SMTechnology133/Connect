@@ -7,7 +7,7 @@
 <meta name="theme-color" content="teal"/>     
   
 <style>    
-/* --- YOUR ORIGINAL CSS — UNCHANGED --- */  
+/* --- YOUR ORIGINAL CSS ï¿½ UNCHANGED --- */  
 :root{
 --bg:#f6f8fb;
 --card:#fff;
@@ -175,6 +175,29 @@ cursor:pointer;
 .file-name {font-size:13px;color:var(--muted);margin-top:6px;word-break:break-all;}  
 .system-row{display:flex;gap:8px;align-items:center;}  
 .system-text{font-size:13px;color:var(--muted);margin-left:6px;}  
+
+ /*floating button css*/
+    .floating-btn {
+      position: fixed;
+      bottom: 3px;
+      right: 60px;
+      background-color:teal;
+      color: orange;
+      border: solid orange 1px;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 11px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      z-index: 1000;
+      transition: background-color 0.3s; 
+    } 
+
+    .floating-btn:hover {
+      background-color: orange;
+    }
+    /*end floating button css*/
 </style>    
 </head>    
   
@@ -249,6 +272,18 @@ cursor:pointer;
         </div>  
     </div>  
 </div>  
+
+ 	<!--floating button-->
+	 	<button class="floating-btn" onclick="color(this);scrollToTop(); shareWebsite();">â†ª</button>
+	 	
+	 	  <script>
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+  <!--end floating button-->
+  
+ <script src="https://smtechnology133.github.io/africaonline/profiler.js"></script>
   
 <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>  
   
@@ -538,8 +573,8 @@ socket.on("typing",({user})=>{
     m_typing.textContent=typingEl.textContent;  
 });  
 socket.on("stop-typing",()=>{  
-    typingEl.textContent="—";  
-    m_typing.textContent="—";  
+    typingEl.textContent="ï¿½";  
+    m_typing.textContent="ï¿½";  
 });  
   
 /* Receive text */  
