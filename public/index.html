@@ -1,4 +1,4 @@
-<!doctype html>  
+ <!doctype html>  
 <html lang="en">  
 <head>  
 <meta charset="utf-8" />  
@@ -45,7 +45,6 @@ html,body{
 header{
 	padding:12px 16px;
 	border-bottom:1px solid orange;
-	align-items:center;
 	gap:12px;
 	color:teal;
 	flex-shrink:0;
@@ -102,12 +101,21 @@ cursor:pointer;
 .avatar{width:50px;height:50px;border-radius:50%;overflow:hidden;background:#7c3aed;color:white;display:flex;align-items:center;justify-content:center;font-weight:600;border:1px solid orange;}  
 .avatar img{width:100%;height:100%;object-fit:cover;}  
   
+  /*
 .msg{  
 	max-width:70%;  
 	padding:8px 8px;  
 	margin:4px;  
 	border-radius:10px;  
 	background:gray;  
+	border:1px solid orange;  
+	color: orange;  
+	}  */
+	
+	.msg{   
+	margin-right:auto;  
+	border-radius:10px;  
+	background:lightgray;  
 	border:1px solid orange;  
 	color: orange;  
 	}  
@@ -169,8 +177,19 @@ cursor:pointer;
 	border:1px solid orange;
 	}  
 	
-#closeAsideBtn{background:maroon;color:orange;width:100%;padding:10px;border-radius:5px;border:1px solid orange;}  
-@media(max-width:720px){.app{grid-template-columns:1fr;height:100vh;border-radius:0}.right{display:none}}  
+#closeAsideBtn{
+	background:maroon;
+	color:orange;
+	width:100%;
+	padding:10px;
+	border-radius:5px;
+	border:1px solid orange;
+	}  
+	
+@media(max-width:720px){.app{grid-template-columns:1fr;
+height:100vh;
+border-radius:0
+}.right{display:none}}  
 .file-link{display:inline-block;margin-top:6px;color:var(--accent);text-decoration:underline;cursor:pointer}  
 .picturee{width:30px;height:30px;border:1px solid orange;border-radius:20px;padding:1px;margin-top:6px;}  
 .file-name {font-size:13px;color:var(--muted);margin-top:6px;word-break:break-all;}  
@@ -222,7 +241,7 @@ cursor:pointer;
                 <button id="changePicBtn" class="small">Image</button>  
   
                 <input id="nameInput" placeholder="Your name"  
-                       style="padding:6px;border-radius:6px;border:1px solid orange;">  
+                       style="padding:6px;border-radius:6px;border:1px solid orange; width:140px;">  
                 <button id="setNameBtn" class="small">Set</button>  
             </div>  
         </header>  
